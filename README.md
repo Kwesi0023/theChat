@@ -6,4 +6,3 @@ broadcasting reactions, and tracking when users join or leave. Messages should b
 while active users in each room can be managed in memory. The focus is not on complexity but on getting
 the fundamentals right, clean API design, sensible data modeling, and a solid understanding of event
 driven systems and the WebSocket lifecycle.
-Test 1,2,3
