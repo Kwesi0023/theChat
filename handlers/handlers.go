@@ -25,7 +25,7 @@ func Initialize() {
 // CreateRoomRequest represents the request body for creating a room
 type CreateRoomRequest struct {
 	Name      string `json:"name"`
-	CreatedBy string `json:"created_by"`
+	CreatorID uint   `json:"creator_id"` // Numeric ID of the room creator
 }
 
 // WebSocketUpgrader is configured to allow local testing
@@ -64,8 +64,8 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.TrimSpace(req.CreatedBy) == "" {
-		http.Error(w, "created_by is required", http.StatusBadRequest)
+	if req.CreatorID == 0 {
+		http.Error(w, "creator_id is required and must be greater than 0", http.StatusBadRequest)
 		return
 	}
 
@@ -75,8 +75,9 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	room := &models.Room{
 		ID:        roomID,
 		Name:      req.Name,
-		CreatedBy: createdBy,
+		CreatorID: req.CreatorID,
 		Status:    "active", // default status
+		Type:      "public", // default type
 		CreatedAt: time.Now(),
 	}
 
@@ -137,9 +138,9 @@ func GetAllRooms(w http.ResponseWriter, r *http.Request) {
 
 // UpdateRoomStatusRequest represents the request body for updating room status
 type UpdateRoomStatusRequest struct {
-	Status   string `json:"status"`   // 'active', 'archived', 'hidden'
-	Username string `json:"username"` // User making the request (must be creator or admin)
-	IsAdmin  bool   `json:"is_admin"`
+	Status  string `json:"status"`   // 'active', 'archived', 'hidden'
+	UserID  uint   `json:"user_id"`  // ID of user making the request
+	IsAdmin bool   `json:"is_admin"` // Whether user has admin privileges
 }
 
 // UpdateRoomStatus handles PATCH /api/rooms/{id}/status - only creator or admin can change status
@@ -161,7 +162,7 @@ func UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user is the creator or an admin
-	if room.CreatedBy == req.UserID && !req.IsAdmin {
+	if room.CreatorID != req.UserID && !req.IsAdmin {
 		http.Error(w, "Unauthorized: only the room creator or admin can change room status", http.StatusForbidden)
 		return
 	}
@@ -184,6 +185,48 @@ func UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(room)
+}
+
+// DeleteRoomRequest represents the request body for deleting a room
+type DeleteRoomRequest struct {
+	UserID  uint `json:"user_id"`  // ID of user making the request
+	IsAdmin bool `json:"is_admin"` // Whether user has admin privileges
+}
+
+// DeleteRoom handles DELETE /api/rooms/{id} - only creator or admin can delete
+func DeleteRoom(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	roomID := vars["id"]
+
+	var req DeleteRoomRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch the room to check creator
+	room, err := database.GetRoom(roomID)
+	if err != nil {
+		http.Error(w, "Room not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if user is the creator or an admin: (User.ID == Room.CreatorID) OR (User.IsAdmin == true)
+	if room.CreatorID != req.UserID && !req.IsAdmin {
+		http.Error(w, "Unauthorized: only the room creator or admin can delete this room", http.StatusForbidden)
+		return
+	}
+
+	// Delete room from database
+	if err := database.DeleteRoom(roomID); err != nil {
+		log.Printf("Failed to delete room: %v", err)
+		http.Error(w, "Failed to delete room", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Room deleted successfully"})
 }
 
 // ServeWs handles the WebSocket upgrade and connection lifecycle
