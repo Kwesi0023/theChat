@@ -9,7 +9,7 @@ import (
 
 	"github.com/Kwesi0023/theChat/database"
 	"github.com/Kwesi0023/theChat/models"
-	ws "github.com/Kwesi0023/theChat/websockets"
+	ws "github.com/Kwesi0023/theChat/websocket"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
@@ -166,16 +166,17 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 	roomHub := Hub.GetOrCreateRoomHub(roomID)
 	client := ws.NewClient(conn, roomHub, user, status)
 
-	// Fetch message history (last 50 messages in DESC order)
+	// Fetch message history(descending order)
 	messages, err := database.GetLastMessages(roomID, 50)
 	if err != nil {
 		log.Printf("Failed to fetch message history: %v", err)
 	} else if messages != nil && len(messages) > 0 {
-		// Reverse to chronological order (oldest first)
+		// Fetch reactions for each message and attach them
 		for i := len(messages) - 1; i >= 0; i-- {
-			messages[i].Reactions, _ = database.GetReactionsByMessageID(messages[i].ID)
+			reactions, _ := database.GetReactionsByMessageID(messages[i].ID)
+			messages[i].Reactions = reactions
 		}
-		// Reverse the slice
+		// Reverse the slice to chronological order (oldest first)
 		for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
 			messages[i], messages[j] = messages[j], messages[i]
 		}
