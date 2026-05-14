@@ -24,7 +24,8 @@ func Initialize() {
 
 // CreateRoomRequest represents the request body for creating a room
 type CreateRoomRequest struct {
-	Name string `json:"name"`
+	Name      string `json:"name"`
+	CreatedBy string `json:"created_by"`
 }
 
 // WebSocketUpgrader is configured to allow local testing
@@ -63,12 +64,19 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.TrimSpace(req.CreatedBy) == "" {
+		http.Error(w, "created_by is required", http.StatusBadRequest)
+		return
+	}
+
 	// Generate room ID
 	roomID := generateRoomID()
 
 	room := &models.Room{
 		ID:        roomID,
 		Name:      req.Name,
+		CreatedBy: createdBy,
+		Status:    "active", // default status
 		CreatedAt: time.Now(),
 	}
 
@@ -125,6 +133,57 @@ func GetAllRooms(w http.ResponseWriter, r *http.Request) {
 		"rooms": rooms,
 	}
 	json.NewEncoder(w).Encode(response)
+}
+
+// UpdateRoomStatusRequest represents the request body for updating room status
+type UpdateRoomStatusRequest struct {
+	Status   string `json:"status"`   // 'active', 'archived', 'hidden'
+	Username string `json:"username"` // User making the request (must be creator or admin)
+	IsAdmin  bool   `json:"is_admin"`
+}
+
+// UpdateRoomStatus handles PATCH /api/rooms/{id}/status - only creator or admin can change status
+func UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	roomID := vars["id"]
+
+	var req UpdateRoomStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch the room to check creator
+	room, err := database.GetRoom(roomID)
+	if err != nil {
+		http.Error(w, "Room not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if user is the creator or an admin
+	if room.CreatedBy == req.UserID && !req.IsAdmin {
+		http.Error(w, "Unauthorized: only the room creator or admin can change room status", http.StatusForbidden)
+		return
+	}
+
+	// Validate new status
+	if req.Status != "active" && req.Status != "archived" && req.Status != "hidden" {
+		http.Error(w, "Invalid status. Must be 'active', 'archived', or 'hidden'", http.StatusBadRequest)
+		return
+	}
+
+	// Update room status in database
+	if err := database.UpdateRoomStatus(roomID, req.Status); err != nil {
+		log.Printf("Failed to update room status: %v", err)
+		http.Error(w, "Failed to update room status", http.StatusInternalServerError)
+		return
+	}
+
+	// Return updated room
+	room.Status = req.Status
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(room)
 }
 
 // ServeWs handles the WebSocket upgrade and connection lifecycle
@@ -205,18 +264,9 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		client.send <- readOnlyMsg
 	}
 
-	// Save join message to database with msg_type = 'join'
-	joinMsg := &models.Message{
-		ID:        generateMessageID(),
-		RoomID:    roomID,
-		UserID:    user.ID,
-		Username:  username,
-		Content:   "",
-		MsgType:   "join",
-		Timestamp: time.Now(),
-	}
-	if err := database.SaveMessageWithType(joinMsg); err != nil {
-		log.Printf("Failed to save join message: %v", err)
+	// Save join message silently (no broadcast)
+	if err := database.SaveSilentJoinMessage(roomID, user.ID, username); err != nil {
+		log.Printf("Failed to save silent join message: %v", err)
 	}
 
 	// Register client with the room hub, passing the room status
