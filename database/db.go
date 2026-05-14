@@ -41,7 +41,7 @@ func CreateTables() error {
 
 // CreateRoom inserts a new room into the database
 func CreateRoom(room *models.Room) error {
-	query := "INSERT INTO rooms (id, name, description, created_by, status, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	query := "INSERT INTO rooms (id, name, description, creator_id, status, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
 	// Default to 'active' status and 'public' type if not specified
 	status := room.Status
 	if status == "" {
@@ -51,17 +51,17 @@ func CreateRoom(room *models.Room) error {
 	if roomType == "" {
 		roomType = "public"
 	}
-	_, err := DB.Exec(query, room.ID, room.Name, room.Description, room.CreatedBy, status, roomType, room.CreatedAt)
+	_, err := DB.Exec(query, room.ID, room.Name, room.Description, room.CreatorID, status, roomType, room.CreatedAt)
 	return err
 }
 
 // GetRoom retrieves a room by ID with all fields
 func GetRoom(roomID string) (*models.Room, error) {
-	query := "SELECT id, name, description, created_by, status, type, created_at FROM rooms WHERE id = ?"
+	query := "SELECT id, name, description, creator_id, status, type, created_at FROM rooms WHERE id = ?"
 	row := DB.QueryRow(query, roomID)
 
 	room := &models.Room{}
-	err := row.Scan(&room.ID, &room.Name, &room.Description, &room.CreatedBy, &room.Status, &room.Type, &room.CreatedAt)
+	err := row.Scan(&room.ID, &room.Name, &room.Description, &room.CreatorID, &room.Status, &room.Type, &room.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func GetRoomStatus(roomID string) (string, error) {
 
 // GetAllRooms retrieves all rooms excluding 'hidden' status (shows 'active' and 'archived')
 func GetAllRooms() ([]*models.Room, error) {
-	query := "SELECT id, name, description, created_by, status, type, created_at FROM rooms WHERE status IN ('active', 'archived') ORDER BY created_at DESC"
+	query := "SELECT id, name, description, creator_id, status, type, created_at FROM rooms WHERE status IN ('active', 'archived') ORDER BY created_at DESC"
 	rows, err := DB.Query(query)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func GetAllRooms() ([]*models.Room, error) {
 	var rooms []*models.Room
 	for rows.Next() {
 		room := &models.Room{}
-		err := rows.Scan(&room.ID, &room.Name, &room.Description, &room.CreatedBy, &room.Status, &room.Type, &room.CreatedAt)
+		err := rows.Scan(&room.ID, &room.Name, &room.Description, &room.CreatorID, &room.Status, &room.Type, &room.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -195,8 +195,8 @@ func GetMessagesByRoom(roomID string, limit int) ([]*models.Message, error) {
 }
 
 /*
- Inside your handler function in handlers.go
-func GetRoomHistory(w http.ResponseWriter, r *http.Request) {
+ 		Inside your handler function in handlers.go
+	func GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// 1. Database logic starts here
 	query := "SELECT id, content, msg_type FROM messages WHERE room_id = ? ORDER BY created_at DESC LIMIT 50"
 
@@ -239,6 +239,20 @@ func GetReactionsByMessageID(messageID string) ([]*models.Reaction, error) {
 	}
 
 	return reactions, rows.Err()
+}
+
+// UpdateRoomStatus updates a room's status
+func UpdateRoomStatus(roomID string, newStatus string) error {
+	query := "UPDATE rooms SET status = ? WHERE id = ?"
+	_, err := DB.Exec(query, newStatus, roomID)
+	return err
+}
+
+// DeleteRoom removes a room from the database
+func DeleteRoom(roomID string) error {
+	query := "DELETE FROM rooms WHERE id = ?"
+	_, err := DB.Exec(query, roomID)
+	return err
 }
 
 // CloseDB closes the database connection
