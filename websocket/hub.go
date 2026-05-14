@@ -1,10 +1,8 @@
 package websocket
 
 import (
-	"fmt"
 	"log"
 	"sync"
-	"time"
 
 	"github.com/Kwesi0023/theChat/database"
 	"github.com/Kwesi0023/theChat/models"
@@ -88,23 +86,11 @@ func (rh *RoomHub) run() {
 
 				log.Printf("User %s left room %s", client.User.Username, rh.roomID)
 
-				// Save leave message to database with msg_type = 'leave' (raw SQL)
-				leaveMsg := &models.Message{
-					ID:        generateSystemMessageID(fmt.Sprintf("%d", rh.roomID)),
-					RoomID:    rh.roomID,
-					UserID:    client.User.ID,
-					Username:  client.User.Username,
-					Content:   "",
-					MsgType:   "leave",
-					Timestamp: time.Now(),
+				// Silently save leave message to database (no broadcast)
+				if err := database.SaveSilentLeaveMessage(rh.roomID, client.User.ID, client.User.Username); err != nil {
+					log.Printf("Failed to save silent leave message: %v", err)
 				}
-				rh.saveMessageWithType(leaveMsg)
 
-				// Broadcast leave notification to remaining clients
-				rh.BroadcastLeaveNotification(client.User.Username)
-
-				// Broadcast user list to remaining clients
-				rh.broadcastUserList()
 			} else {
 				rh.mu.Unlock()
 			}
@@ -220,14 +206,4 @@ func (rh *RoomHub) BroadcastReaction(reaction *models.Reaction) {
 		Timestamp: reaction.CreatedAt,
 	}
 	rh.broadcast <- wsMsg
-}
-
-// Helper function to generate system message IDs
-func generateSystemMessageID(roomID string) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, 16)
-	for i := range b {
-		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
-	}
-	return time.Now().Format("20060102150405") + "-sys-" + string(b[:8])
 }
