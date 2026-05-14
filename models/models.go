@@ -8,9 +8,9 @@ type Room struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	CreatedAt   time.Time `json:"created_at"`
-	CreatedBy   string    `json:"created_by"` // Username of room creator	Status      string    `json:"status"` // 'active', 'archived', 'hidden'
+	CreatedBy   uint      `json:"created_by"` // ID of room creator	Status      string    `json:"status"` // 'active', 'archived', 'hidden'
 	Type        string    `json:"type"`       // 'public', 'private'
-
+	Status      string    `json:"status"`     // 'active', 'archived', 'hidden'
 }
 
 // Message represents a chat message
