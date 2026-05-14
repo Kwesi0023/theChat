@@ -57,7 +57,7 @@ func (h *Hub) GetOrCreateRoomHub(roomID string) *RoomHub {
 	h.rooms[roomID] = roomHub
 	go roomHub.run()
 
-	log.Printf("Created new room hub for room: %v", roomID)
+	log.Printf("Created new room: %v", roomID)
 	return roomHub
 }
 
@@ -142,6 +142,16 @@ func (rh *RoomHub) BroadcastLeaveNotification(username string) {
 		RoomID:   rh.roomID,
 	}
 	rh.broadcast <- wsMsg
+}
+
+// RegisterWithStatus registers a client with the room hub and sets the room status
+func (rh *RoomHub) RegisterWithStatus(client *Client, status string) {
+	rh.mu.Lock()
+	rh.roomStatus = status
+	rh.mu.Unlock()
+
+	// Send client to register channel
+	rh.register <- client
 }
 
 // broadcastUserList sends the current list of users in the room to all clients
