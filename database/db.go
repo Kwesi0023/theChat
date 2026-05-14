@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/Kwesi0023/theChat/models"
@@ -162,6 +163,19 @@ func GetMessagesByRoom(roomID string, limit int) ([]*models.Message, error) {
 	}
 
 	return messages, rows.Err()
+}
+
+// Inside your handler function in handlers.go
+func GetRoomHistory(w http.ResponseWriter, r *http.Request) {
+	// 1. Database logic starts here
+	query := "SELECT id, content, msg_type FROM messages WHERE room_id = ? ORDER BY created_at DESC LIMIT 50"
+
+	// 2. Execute the query using the 'db' variable you initialized in main
+	rows, err := DB.Query(query, roomID)
+	if err != nil {
+		// Handle error
+	}
+	defer rows.Close()
 }
 
 // SaveReaction saves a reaction to a message (raw SQL)
