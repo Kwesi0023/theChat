@@ -13,13 +13,13 @@ import (
 // Hub maintains active client connections per room and handles message broadcasting
 type Hub struct {
 	// Rooms maps room IDs to their respective room hubs
-	rooms map[uint]*RoomHub
+	rooms map[string]*RoomHub
 	mu    sync.RWMutex
 }
 
 // RoomHub manages clients and users in a specific room
 type RoomHub struct {
-	roomID     uint
+	roomID     string
 	roomStatus string // 'active', 'archived', or 'hidden'
 	clients    map[*Client]bool
 	users      map[string]*models.User // username -> User
@@ -32,13 +32,13 @@ type RoomHub struct {
 // NewHub creates a new Hub instance
 func NewHub() *Hub {
 	return &Hub{
-		rooms: make(map[uint]*RoomHub),
+		rooms: make(map[string]*RoomHub),
 	}
 
 }
 
 // GetOrCreateRoomHub returns an existing room hub or creates a new one
-func (h *Hub) GetOrCreateRoomHub(roomID uint) *RoomHub {
+func (h *Hub) GetOrCreateRoomHub(roomID string) *RoomHub {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
