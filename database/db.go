@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/Kwesi0023/theChat/models"
@@ -42,7 +41,7 @@ func CreateTables() error {
 
 // CreateRoom inserts a new room into the database
 func CreateRoom(room *models.Room) error {
-	query := "INSERT INTO rooms (id, name, description, status, type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+	query := "INSERT INTO rooms (id, name, description, created_by, status, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
 	// Default to 'active' status and 'public' type if not specified
 	status := room.Status
 	if status == "" {
@@ -52,17 +51,17 @@ func CreateRoom(room *models.Room) error {
 	if roomType == "" {
 		roomType = "public"
 	}
-	_, err := DB.Exec(query, room.ID, room.Name, room.Description, status, roomType, room.CreatedAt)
+	_, err := DB.Exec(query, room.ID, room.Name, room.Description, room.CreatedBy, status, roomType, room.CreatedAt)
 	return err
 }
 
 // GetRoom retrieves a room by ID with all fields
 func GetRoom(roomID string) (*models.Room, error) {
-	query := "SELECT id, name, description, status, type, created_at FROM rooms WHERE id = ?"
+	query := "SELECT id, name, description, created_by, status, type, created_at FROM rooms WHERE id = ?"
 	row := DB.QueryRow(query, roomID)
 
 	room := &models.Room{}
-	err := row.Scan(&room.ID, &room.Name, &room.Description, &room.Status, &room.Type, &room.CreatedAt)
+	err := row.Scan(&room.ID, &room.Name, &room.Description, &room.CreatedBy, &room.Status, &room.Type, &room.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +85,7 @@ func GetRoomStatus(roomID string) (string, error) {
 
 // GetAllRooms retrieves all rooms excluding 'hidden' status (shows 'active' and 'archived')
 func GetAllRooms() ([]*models.Room, error) {
-	query := "SELECT id, name, description, status, type, created_at FROM rooms WHERE status IN ('active', 'archived') ORDER BY created_at DESC"
+	query := "SELECT id, name, description, created_by, status, type, created_at FROM rooms WHERE status IN ('active', 'archived') ORDER BY created_at DESC"
 	rows, err := DB.Query(query)
 	if err != nil {
 		return nil, err
@@ -96,7 +95,7 @@ func GetAllRooms() ([]*models.Room, error) {
 	var rooms []*models.Room
 	for rows.Next() {
 		room := &models.Room{}
-		err := rows.Scan(&room.ID, &room.Name, &room.Description, &room.Status, &room.Type, &room.CreatedAt)
+		err := rows.Scan(&room.ID, &room.Name, &room.Description, &room.CreatedBy, &room.Status, &room.Type, &room.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -119,6 +118,36 @@ func SaveMessageWithType(msg *models.Message) error {
 	createdAt := time.Now()
 	_, err := DB.Exec(query, msg.ID, msg.RoomID, msg.UserID, msg.Username, msg.Content, msg.MsgType, createdAt, msg.Timestamp)
 	return err
+}
+
+// SaveSilentJoinMessage silently logs a join event without broadcasting
+func SaveSilentJoinMessage(roomID string, userID uint, username string) error {
+	query := "INSERT INTO messages (id, room_id, user_id, username, content, msg_type, created_at, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+	msgID := generateSystemMessageID()
+	content := fmt.Sprintf("[%s] connected", username)
+	now := time.Now()
+	_, err := DB.Exec(query, msgID, roomID, userID, username, content, "join", now, now)
+	return err
+}
+
+// SaveSilentLeaveMessage silently logs a leave event without broadcasting
+func SaveSilentLeaveMessage(roomID string, userID uint, username string) error {
+	query := "INSERT INTO messages (id, room_id, user_id, username, content, msg_type, created_at, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+	msgID := generateSystemMessageID()
+	content := fmt.Sprintf("[%s] disconnected", username)
+	now := time.Now()
+	_, err := DB.Exec(query, msgID, roomID, userID, username, content, "leave", now, now)
+	return err
+}
+
+// Helper function to generate system message IDs
+func generateSystemMessageID() string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 8)
+	for i := range b {
+		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
+	}
+	return time.Now().Format("20060102150405") + "-sys-" + string(b)
 }
 
 // GetLastMessages retrieves the last N messages for a room in DESC order (newest first)
@@ -165,7 +194,8 @@ func GetMessagesByRoom(roomID string, limit int) ([]*models.Message, error) {
 	return messages, rows.Err()
 }
 
-// Inside your handler function in handlers.go
+/*
+ Inside your handler function in handlers.go
 func GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// 1. Database logic starts here
 	query := "SELECT id, content, msg_type FROM messages WHERE room_id = ? ORDER BY created_at DESC LIMIT 50"
@@ -173,16 +203,19 @@ func GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// 2. Execute the query using the 'db' variable you initialized in main
 	rows, err := DB.Query(query, roomID)
 	if err != nil {
-		// Handle error
+		log.Printf("Failed to query messages: %v", err)
+		http.Error(w, "Failed to retrieve message history", http.StatusInternalServerError)
+		return
 	}
 	defer rows.Close()
 }
+*/
 
 // SaveReaction saves a reaction to a message (raw SQL)
-func SaveReaction(reaction *models.Reaction) error {
+func SaveReaction(reactions *models.Reaction) error {
 	query := "INSERT INTO reactions (id, message_id, user_id, username, emoji, created_at) VALUES (?, ?, ?, ?, ?, ?)"
 	createdAt := time.Now()
-	_, err := DB.Exec(query, reaction.ID, reaction.MessageID, reaction.UserID, reaction.Username, reaction.Emoji, createdAt)
+	_, err := DB.Exec(query, reactions.ID, reactions.MessageID, reactions.UserID, reactions.Username, reactions.Emoji, createdAt)
 	return err
 }
 
