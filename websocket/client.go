@@ -156,10 +156,10 @@ func (c *Client) handleMessage(wsMsg models.WebSocketMessage) {
 
 	// Check if room is archived - prevent saves and broadcasts
 	if c.roomStatus == "archived" {
-		log.Printf("User %s attempted to send message in archived room %s", c.User.Username, c.roomHub.roomID)
+		log.Printf("%s attempted to send message in archived room %s", c.User.Username, c.roomHub.roomID)
 		errorMsg := models.WebSocketMessage{
 			Type:    "error",
-			Content: "This room is read-only. You cannot send messages.",
+			Content: "This room has been archived. You cannot send messages.",
 		}
 		c.send <- errorMsg
 		return
@@ -194,7 +194,7 @@ func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
 
 	// Block reactions in archived rooms
 	if c.roomStatus == "archived" {
-		log.Printf("User %s attempted to add reaction in archived room %s", c.User.Username, c.roomHub.roomID)
+		log.Printf("%s attempted to react in archived room %s", c.User.Username, c.roomHub.roomID)
 		return
 	}
 
@@ -214,7 +214,7 @@ func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
 
 	// Broadcast reaction to all clients in the room
 	c.roomHub.BroadcastReaction(reaction)
-	log.Printf("User %s added reaction %s to message %s", c.User.Username, wsMsg.Emoji, wsMsg.MessageID)
+	log.Printf("%s reacted %s to message", c.User.Username, wsMsg.Emoji)
 }
 
 // Helper function to generate a unique ID (simplified UUID v4)
@@ -230,9 +230,4 @@ func randomString(length int) string {
 		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
 	}
 	return string(b)
-}
-
-// Helper function to save message to database
-func saveMessageToDB(msg *models.Message) error {
-	return database.SaveMessage(msg)
 }
