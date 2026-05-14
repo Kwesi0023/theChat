@@ -8,7 +8,7 @@ type WebSocketMessage struct {
 	Content   string     `json:"content,omitempty"`
 	Username  string     `json:"username,omitempty"`
 	UserID    uint       `json:"user_id,omitempty"`
-	RoomID    string     `json:"room_id,omitempty"`
+	RoomID    uint       `json:"room_id,omitempty"`
 	MsgType   string     `json:"msg_type,omitempty"` // for system messages
 	Users     []User     `json:"users,omitempty"`
 	Messages  []Message  `json:"messages,omitempty"` // for history
