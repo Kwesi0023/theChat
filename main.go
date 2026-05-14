@@ -42,6 +42,7 @@ func main() {
 	router.HandleFunc("/api/rooms", handlers.CreateRoom).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.GetAllRooms).Methods("GET")
 	router.HandleFunc("/api/rooms/{id}/messages", handlers.GetRoomMessages).Methods("GET")
+	router.HandleFunc("/api/rooms/{id}/status", handlers.UpdateRoomStatus).Methods("PATCH")
 
 	// Health check
 	router.HandleFunc("/health", handlers.HealthCheck).Methods("GET")
