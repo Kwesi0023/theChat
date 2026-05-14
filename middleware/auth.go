@@ -38,7 +38,7 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		log.Printf("User %s attempting to join room %s", username, roomID)
+		log.Printf("%s wants to join room %s", username, roomID)
 
 		// Call the next handler
 		next(w, r)
