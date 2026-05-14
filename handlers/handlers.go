@@ -29,19 +29,23 @@ type CreateRoomRequest struct {
 
 // WebSocketUpgrader is configured to allow local testing
 var wsUpgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		// Allow connections from localhost for testing
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			return true
-		}
-		// In production, validate the origin against your allowed hosts
-		// we might just use one of this.. usually the localhost
-		return strings.HasPrefix(origin, "http://localhost") ||
-			strings.HasPrefix(origin, "http://127.0.0.1") ||
-			strings.HasPrefix(origin, "ws://localhost") ||
-			strings.HasPrefix(origin, "ws://127.0.0.1")
-	},
+	/*
+		CheckOrigin: func(r *http.Request) bool {
+			// Allow connections from localhost for testing
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true
+			}
+
+			// In production, validate the origin against your allowed hosts
+			// we might just use one of this.. usually the localhost
+			return strings.HasPrefix(origin, "http://localhost") ||
+				strings.HasPrefix(origin, "http://127.0.0.1") ||
+				strings.HasPrefix(origin, "ws://localhost") ||
+				strings.HasPrefix(origin, "ws://127.0.0.1")
+
+		},
+	*/
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 }
