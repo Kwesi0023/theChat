@@ -42,8 +42,12 @@ func main() {
 	router.HandleFunc("/api/rooms", handlers.CreateRoom).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.GetAllRooms).Methods("GET")
 	router.HandleFunc("/api/rooms/{id}/messages", handlers.GetRoomMessages).Methods("GET")
-	router.HandleFunc("/api/rooms/{id}/status", handlers.UpdateRoomStatus).Methods("PATCH")
-	router.HandleFunc("/api/rooms/{id}", handlers.DeleteRoom).Methods("DELETE")
+	router.HandleFunc("/api/rooms/{id}/status", func(w http.ResponseWriter, r *http.Request) {
+		handlers.UpdateRoomStatus(handlers.Hub, w, r)
+	}).Methods("PATCH")
+	router.HandleFunc("/api/rooms/{id}", func(w http.ResponseWriter, r *http.Request) {
+		handlers.DeleteRoom(handlers.Hub, w, r)
+	}).Methods("DELETE")
 
 	// Health check
 	router.HandleFunc("/health", handlers.HealthCheck).Methods("GET")
