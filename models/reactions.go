@@ -8,7 +8,7 @@ import (
 // This struct is used for both Database storage and JSON communication.
 type Reaction struct {
 	ID        string    `json:"id"`         // Primary Key in DB
-	MessageID uint      `json:"message_id"` // Foreign Key to messages table
+	MessageID string    `json:"message_id"` // Foreign Key to messages table
 	UserID    uint      `json:"user_id"`    // The student who reacted
 	Emoji     string    `json:"emoji"`      // The emoji string (e.g., "heart", "fire")
 	CreatedAt time.Time `json:"created_at"` // When the reaction happened
