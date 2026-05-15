@@ -87,6 +87,8 @@ func (c *Client) readPump() {
 			c.handleMessage(wsMsg)
 		case "reaction":
 			c.handleReaction(wsMsg)
+		case "history":
+			c.handleHistory(wsMsg)
 		default:
 			log.Printf("Unknown message type: %s", wsMsg.Type)
 		}
@@ -185,6 +187,30 @@ func (c *Client) handleMessage(wsMsg models.WebSocketMessage) {
 
 	// Broadcast to all clients in the room
 	c.roomHub.BroadcastMessage(msg)
+}
+
+func (c *Client) handleHistory(wsMsg models.WebSocketMessage) {
+	if wsMsg.RoomID == "" {
+		log.Println("History request failed: RoomID is empty")
+		return
+	}
+
+	// 1. Fetch history from the DB.. 50 for now
+	history, err := database.GetChatHistory(wsMsg.RoomID, 50)
+	if err != nil {
+		log.Printf("Could not retrieve history for room %s: %v", wsMsg.RoomID, err)
+		return
+	}
+
+	// the wsmsg struct
+	response := models.WebSocketMessage{
+		Type:     "history",
+		RoomID:   wsMsg.RoomID,
+		Messages: history,
+	}
+
+	// 3. Send ONLY to the client who requested it
+	c.send <- response
 }
 
 // handleReaction processes incoming reaction payloads
