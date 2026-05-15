@@ -3,6 +3,8 @@ package websocket
 import (
 	"encoding/json"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Kwesi0023/theChat/database"
@@ -187,8 +189,15 @@ func (c *Client) handleMessage(wsMsg models.WebSocketMessage) {
 
 // handleReaction processes incoming reaction payloads
 func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
-	if wsMsg.MessageID == 0 || wsMsg.Emoji == "" {
+	if strings.TrimSpace(wsMsg.MessageID) == "" || wsMsg.Emoji == "" {
 		log.Printf("Invalid reaction: missing message_id or emoji")
+		return
+	}
+
+	// Convert string message_id to uint
+	messageID, err := strconv.ParseUint(wsMsg.MessageID, 10, 32)
+	if err != nil {
+		log.Printf("Invalid message_id format: %s", wsMsg.MessageID)
 		return
 	}
 
@@ -200,7 +209,7 @@ func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
 
 	reaction := &models.Reaction{
 		ID:        generateID(),
-		MessageID: wsMsg.MessageID,
+		MessageID: strconv.FormatUint(messageID, 10),
 		UserID:    c.User.ID,
 		Username:  c.User.Username,
 		Emoji:     wsMsg.Emoji,
