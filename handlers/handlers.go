@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,7 +26,7 @@ func Initialize() {
 // CreateRoomRequest represents the request body for creating a room
 type CreateRoomRequest struct {
 	Name      string `json:"name"`
-	CreatorID uint   `json:"creator_id"` // Numeric ID of the room creator
+	CreatorID string `json:"creator_id"` // String ID of the room creator
 }
 
 // WebSocketUpgrader is configured to allow local testing
@@ -64,8 +65,20 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.CreatorID == 0 {
-		http.Error(w, "creator_id is required and must be greater than 0", http.StatusBadRequest)
+	if strings.TrimSpace(req.CreatorID) == "" {
+		http.Error(w, "creator_id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Convert string creator_id to uint
+	creatorID, err := strconv.ParseUint(req.CreatorID, 10, 32)
+	if err != nil {
+		http.Error(w, "creator_id must be a valid number", http.StatusBadRequest)
+		return
+	}
+
+	if creatorID == 0 {
+		http.Error(w, "creator_id must be greater than 0", http.StatusBadRequest)
 		return
 	}
 
@@ -75,7 +88,7 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	room := &models.Room{
 		ID:        roomID,
 		Name:      req.Name,
-		CreatorID: req.CreatorID,
+		CreatorID: uint(creatorID),
 		Status:    "active", // default status
 		Type:      "public", // default type
 		CreatedAt: time.Now(),
@@ -139,7 +152,7 @@ func GetAllRooms(w http.ResponseWriter, r *http.Request) {
 // UpdateRoomStatusRequest represents the request body for updating room status
 type UpdateRoomStatusRequest struct {
 	Status  string `json:"status"`   // 'active', 'archived', 'hidden'
-	UserID  uint   `json:"user_id"`  // ID of user making the request
+	UserID  string `json:"user_id"`  // String ID of user making the request
 	IsAdmin bool   `json:"is_admin"` // Whether user has admin privileges
 }
 
@@ -154,6 +167,18 @@ func UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Convert string user_id to uint
+	if strings.TrimSpace(req.UserID) == "" {
+		http.Error(w, "user_id is required", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := strconv.ParseUint(req.UserID, 10, 32)
+	if err != nil {
+		http.Error(w, "user_id must be a valid number", http.StatusBadRequest)
+		return
+	}
+
 	// Fetch the room to check creator
 	room, err := database.GetRoom(roomID)
 	if err != nil {
@@ -162,7 +187,7 @@ func UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user is the creator or an admin
-	if room.CreatorID != req.UserID && !req.IsAdmin {
+	if room.CreatorID != uint(userID) && !req.IsAdmin {
 		http.Error(w, "Unauthorized: only the room creator or admin can change room status", http.StatusForbidden)
 		return
 	}
@@ -189,8 +214,8 @@ func UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
 
 // DeleteRoomRequest represents the request body for deleting a room
 type DeleteRoomRequest struct {
-	UserID  uint `json:"user_id"`  // ID of user making the request
-	IsAdmin bool `json:"is_admin"` // Whether user has admin privileges
+	UserID  string `json:"user_id"`  // String ID of user making the request
+	IsAdmin bool   `json:"is_admin"` // Whether user has admin privileges
 }
 
 // DeleteRoom handles DELETE /api/rooms/{id} - only creator or admin can delete
@@ -204,6 +229,18 @@ func DeleteRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Convert string user_id to uint
+	if strings.TrimSpace(req.UserID) == "" {
+		http.Error(w, "user_id is required", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := strconv.ParseUint(req.UserID, 10, 32)
+	if err != nil {
+		http.Error(w, "user_id must be a valid number", http.StatusBadRequest)
+		return
+	}
+
 	// Fetch the room to check creator
 	room, err := database.GetRoom(roomID)
 	if err != nil {
@@ -211,8 +248,8 @@ func DeleteRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if user is the creator or an admin: (User.ID == Room.CreatorID) OR (User.IsAdmin == true)
-	if room.CreatorID != req.UserID && !req.IsAdmin {
+	// Check if user is the creator or an admin
+	if room.CreatorID != uint(userID) && !req.IsAdmin {
 		http.Error(w, "Unauthorized: only the room creator or admin can delete this room", http.StatusForbidden)
 		return
 	}
@@ -234,18 +271,21 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 	// Extract username and room_id from query parameters (validated by middleware)
 	username := strings.TrimSpace(r.URL.Query().Get("username"))
 	roomID := strings.TrimSpace(r.URL.Query().Get("room_id"))
+	roomName := strings.TrimSpace(r.URL.Query().Get("room_name")) // Optional, for logging
+
+	log.Printf("WebSocket connection attempt: username=%s, room_id=%s, room_name=%s", username, roomID, roomName)
 
 	// Check room status using raw SQL (before upgrade)
-	status, err := database.GetRoomStatus(roomID)
+	status, err := database.GetRoomStatus(roomName)
 	if err != nil {
-		log.Printf("Room not found: %s", roomID)
+		log.Printf("Room not found: %s", roomName)
 		http.Error(w, "Room not found", http.StatusNotFound)
 		return
 	}
 
 	// Handle room status logic
 	if status == "hidden" {
-		log.Printf("Attempted access to hidden room: %s", roomID)
+		log.Printf("Attempted access to hidden room: %s", roomName)
 		http.Error(w, "Room not found", http.StatusNotFound)
 		return
 	}
@@ -260,21 +300,23 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("WebSocket connection established for user %s in room %s (status: %s)", username, roomID, status)
 
-	// Create user model
+	// Create user model with generated user ID
+
 	user := &models.User{
-		ID:       generateUserID(),
+		ID:       0, // Will be assigned from userID string if needed, otherwise use as reference
 		Username: username,
-		RoomID:   roomID,
+
 		JoinedAt: time.Now(),
 	}
 
 	// The Hand-Off: Get or create room hub and create client
-	roomHub := Hub.GetOrCreateRoomHub(roomID)
+	roomHub := Hub.GetOrCreateRoomHub(roomName)
 	client := ws.NewClient(conn, roomHub, user, status)
 
 	// Fetch message history(descending order)
-	messages, err := database.GetLastMessages(roomID, 50)
+	messages, err := database.GetLastMessages(roomName, 50)
 	if err != nil {
+
 		log.Printf("Failed to fetch message history: %v", err)
 	} else if messages != nil && len(messages) > 0 {
 		// Fetch reactions for each message and attach them
@@ -291,7 +333,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		historyMsg := models.WebSocketMessage{
 			Type:     "history",
 			Messages: messages,
-			RoomID:   roomID,
+			RoomID:   roomName,
 		}
 		client.send <- historyMsg
 		log.Printf("Sent %d message history items to user %s", len(messages), username)
@@ -299,7 +341,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 
 	// If room is archived, send read-only notification
 	if status == "archived" {
-		log.Printf("User %s connected to archived room %s (read-only)", username, roomID)
+		log.Printf("%s connected to archived room %s (read-only)", username, roomName)
 		readOnlyMsg := models.WebSocketMessage{
 			Type:    "system",
 			Content: "This room is read-only. You can view messages but cannot send new ones.",
@@ -313,7 +355,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Register client with the room hub, passing the room status
-	roomHub.registerWithStatus(client, status)
+	roomHub.RegisterWithStatus(client, status)
 
 	// Concurrency: Start two separate goroutines
 	client.Start()
