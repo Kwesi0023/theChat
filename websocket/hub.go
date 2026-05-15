@@ -117,7 +117,7 @@ func (rh *RoomHub) BroadcastMessage(msg *models.Message) {
 		Content:   msg.Content,
 		Username:  msg.Username,
 		UserID:    msg.UserID,
-		RoomID:    msg.RoomID,
+		RoomID:    string(msg.RoomID),
 		Timestamp: msg.Timestamp,
 	}
 	rh.broadcast <- wsMsg
