@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -157,7 +158,7 @@ type UpdateRoomStatusRequest struct {
 }
 
 // UpdateRoomStatus handles PATCH /api/rooms/{id}/status - only creator or admin can change status
-func UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
+func UpdateRoomStatus(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
 
@@ -205,6 +206,17 @@ func UpdateRoomStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Broadcast status change to the room
+	roomHub := hub.GetOrCreateRoomHub(roomID)
+	systemMsg := models.WebSocketMessage{
+		Type:    "system",
+		MsgType: "status_change",
+		Content: fmt.Sprintf("Room is now %s", req.Status),
+		RoomID:  roomID,
+		Timestamp: time.Now(),
+	}
+	roomHub.BroadcastSystemMessage(systemMsg)
+
 	// Return updated room
 	room.Status = req.Status
 	w.Header().Set("Content-Type", "application/json")
@@ -219,7 +231,7 @@ type DeleteRoomRequest struct {
 }
 
 // DeleteRoom handles DELETE /api/rooms/{id} - only creator or admin can delete
-func DeleteRoom(w http.ResponseWriter, r *http.Request) {
+func DeleteRoom(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
 
@@ -350,7 +362,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save join message silently (no broadcast)
-	if err := database.SaveSilentJoinMessage(roomID, user.ID, username); err != nil {
+	if err := database.SaveSilentJoinMessage(roomName, user.ID, username); err != nil {
 		log.Printf("Failed to save silent join message: %v", err)
 	}
 

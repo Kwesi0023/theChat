@@ -123,6 +123,11 @@ func (rh *RoomHub) BroadcastMessage(msg *models.Message) {
 	rh.broadcast <- wsMsg
 }
 
+// BroadcastSystemMessage sends a system notification to all clients in the room
+func (rh *RoomHub) BroadcastSystemMessage(wsMsg models.WebSocketMessage) {
+	rh.broadcast <- wsMsg
+}
+
 // BroadcastJoinNotification notifies clients that a user joined
 func (rh *RoomHub) BroadcastJoinNotification(user *models.User) {
 	wsMsg := models.WebSocketMessage{
