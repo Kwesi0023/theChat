@@ -4,7 +4,7 @@ import "time"
 
 // Message represents a chat message
 type Message struct {
-	ID        uint       `json:"id"`
+	ID        string     `json:"id"`
 	RoomID    uint       `json:"room_id"`
 	UserID    uint       `json:"user_id"`
 	Username  string     `json:"username"`
