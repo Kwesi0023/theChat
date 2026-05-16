@@ -32,3 +32,6 @@ Thumbs.db
 *.png
 *.jpg
 *.webp
+
+#Markup files
+*.md
