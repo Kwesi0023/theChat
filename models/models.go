@@ -4,15 +4,15 @@ import "time"
 
 // Message represents a chat message
 type Message struct {
-	ID        string     `json:"id"`
-	RoomID    string     `json:"room_id"`
-	UserID    uint       `json:"user_id"`
-	Username  string     `json:"username"`
-	Content   string     `json:"content"`
-	MsgType   string     `json:"msg_type"` // 'message', 'join', 'leave', 'offline'
-	Timestamp time.Time  `json:"timestamp"`
-	CreatedAt time.Time  `json:"created_at"`
-	Reactions []Reaction `json:"reactions"` // Nested slice for the history fetch
+	ID        string      `json:"id"`
+	RoomID    string      `json:"room_id"`
+	UserID    uint        `json:"user_id"`
+	Username  string      `json:"username"`
+	Content   string      `json:"content"`
+	MsgType   string      `json:"msg_type"` // 'message', 'join', 'leave', 'offline'
+	Timestamp time.Time   `json:"timestamp"`
+	CreatedAt time.Time   `json:"created_at"`
+	Reactions []*Reaction `json:"reactions"` // Nested slice for the history fetch
 }
 
 // User represents an active user in a room
