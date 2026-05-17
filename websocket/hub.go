@@ -176,16 +176,6 @@ func (rh *RoomHub) broadcastUserList() {
 	rh.broadcast <- wsMsg
 }
 
-// registerWithStatus sets the room status and then registers the client
-func (rh *RoomHub) registerWithStatus(client *Client, status string) {
-	rh.mu.Lock()
-	rh.roomStatus = status
-	rh.mu.Unlock()
-
-	// Send to register channel
-	rh.register <- client
-}
-
 // GetUsers returns a copy of the current users in the room
 func (rh *RoomHub) GetUsers() []*models.User {
 	rh.mu.RLock()
@@ -206,7 +196,7 @@ func (rh *RoomHub) GetClientCount() int {
 }
 
 // saveMessageWithType saves a message with msg_type to database (raw SQL helper)
-func (rh *RoomHub) saveMessageWithType(msg *models.Message) error {
+func (rh *RoomHub) SaveMessageWithType(msg *models.Message) error {
 	return database.SaveMessageWithType(msg)
 }
 
