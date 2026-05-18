@@ -21,7 +21,7 @@ const (
 
 func main() {
 	// Initialize database
-	dsn := "DATABASE_URL"
+	dsn := "root:2006@tcp(127.0.0.1:3306)/thechat?parseTime=true"
 	if err := database.InitDB(dsn); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
