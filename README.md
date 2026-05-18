@@ -18,3 +18,19 @@ driven systems and the WebSocket lifecycle.
 - **Clean API Design** - RESTful endpoints, WebSocket protocol
 - **Proper Lifecycle** - Graceful WebSocket connection handling
 - **Production-Ready Code** - Error handling, connection pooling, proper cleanup
+
+
+### Test Endpoints
+
+```bash
+# Create room
+curl -X POST http://localhost:8080/api/rooms \
+  -H "Content-Type: application/json" \
+  -d '{"name": "General"}'
+
+# Get all rooms
+curl http://localhost:8080/api/rooms
+
+# Health check
+curl http://localhost:8080/health
+
