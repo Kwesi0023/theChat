@@ -11,6 +11,8 @@ import (
 
 	"github.com/Kwesi0023/theChat/database"
 	"github.com/Kwesi0023/theChat/models"
+
+	//c "github.com/Kwesi0023/theChat/websocket"
 	ws "github.com/Kwesi0023/theChat/websocket"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -18,6 +20,8 @@ import (
 
 // Global WebSocket hub
 var Hub *ws.Hub
+
+// var Client *c.Client
 
 // Initialize sets up the handlers hub
 func Initialize() {
@@ -209,10 +213,10 @@ func UpdateRoomStatus(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	// Broadcast status change to the room
 	roomHub := hub.GetOrCreateRoomHub(roomID)
 	systemMsg := models.WebSocketMessage{
-		Type:    "system",
-		MsgType: "status_change",
-		Content: fmt.Sprintf("Room is now %s", req.Status),
-		RoomID:  roomID,
+		Type:      "system",
+		MsgType:   "status_change",
+		Content:   fmt.Sprintf("The room is now %s", req.Status),
+		RoomID:    roomID,
 		Timestamp: time.Now(),
 	}
 	roomHub.BroadcastSystemMessage(systemMsg)
@@ -330,7 +334,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 
 		log.Printf("Failed to fetch message history: %v", err)
-	} else if messages != nil && len(messages) > 0 {
+	} else if len(messages) > 0 {
 		// Fetch reactions for each message and attach them
 		for i := len(messages) - 1; i >= 0; i-- {
 			reactions, _ := database.GetReactionsByMessageID(messages[i].ID)
@@ -347,7 +351,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 			Messages: messages,
 			RoomID:   roomName,
 		}
-		client.send <- historyMsg
+		client.Send <- historyMsg
 		log.Printf("Sent %d message history items to user %s", len(messages), username)
 	}
 
@@ -358,7 +362,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 			Type:    "system",
 			Content: "This room is read-only. You can view messages but cannot send new ones.",
 		}
-		client.send <- readOnlyMsg
+		client.Send <- readOnlyMsg
 	}
 
 	// Save join message silently (no broadcast)
