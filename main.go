@@ -13,6 +13,7 @@ import (
 	"github.com/Kwesi0023/theChat/middleware"
 	_ "github.com/Kwesi0023/theChat/websocket"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 )
 
 const (
@@ -20,8 +21,13 @@ const (
 )
 
 func main() {
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("Warning: No .env file found, relying on system environment variables")
+	}
 	// Initialize database
-	dsn := "root:2006@tcp(127.0.0.1:3306)/thechat?parseTime=true"
+	dsn := os.Getenv("DB_DSN")
 	if err := database.InitDB(dsn); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
