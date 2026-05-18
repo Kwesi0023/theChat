@@ -32,7 +32,7 @@ type Client struct {
 	roomHub    *RoomHub
 	User       *models.User
 	roomStatus string // 'active', 'archived', or 'hidden'
-	send       chan interface{}
+	Send       chan interface{}
 }
 
 // NewClient creates a new client instance with room status
@@ -42,7 +42,7 @@ func NewClient(conn *websocket.Conn, roomHub *RoomHub, user *models.User, roomSt
 		roomHub:    roomHub,
 		User:       user,
 		roomStatus: roomStatus,
-		send:       make(chan interface{}, 256),
+		Send:       make(chan interface{}, 256),
 	}
 }
 
@@ -105,7 +105,7 @@ func (c *Client) writePump() {
 
 	for {
 		select {
-		case message, ok := <-c.send:
+		case message, ok := <-c.Send:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 
 			if !ok {
@@ -128,10 +128,10 @@ func (c *Client) writePump() {
 			w.Write(data)
 
 			// Add queued messages to the current WebSocket message
-			n := len(c.send)
+			n := len(c.Send)
 			for i := 0; i < n; i++ {
 				w.Write([]byte("\n"))
-				data, err := json.Marshal(<-c.send)
+				data, err := json.Marshal(<-c.Send)
 				if err != nil {
 					w.Close()
 					return
@@ -165,7 +165,7 @@ func (c *Client) handleMessage(wsMsg models.WebSocketMessage) {
 			Type:    "error",
 			Content: "This room has been archived. You cannot send messages.",
 		}
-		c.send <- errorMsg
+		c.Send <- errorMsg
 		return
 	}
 
@@ -210,7 +210,7 @@ func (c *Client) handleHistory(wsMsg models.WebSocketMessage) {
 	}
 
 	// 3. Send ONLY to the client who requested it
-	c.send <- response
+	c.Send <- response
 }
 
 // handleReaction processes incoming reaction payloads
