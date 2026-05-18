@@ -81,7 +81,7 @@ func (rh *RoomHub) run() {
 			if _, ok := rh.clients[client]; ok {
 				delete(rh.clients, client)
 				delete(rh.users, client.User.Username)
-				close(client.send)
+				close(client.Send)
 				rh.mu.Unlock()
 
 				log.Printf("User %s left room %s", client.User.Username, rh.roomID)
@@ -99,7 +99,7 @@ func (rh *RoomHub) run() {
 			rh.mu.RLock()
 			for client := range rh.clients {
 				select {
-				case client.send <- message:
+				case client.Send <- message:
 				default:
 					// Client's send channel is full, skip
 					log.Printf("Client send channel full for %s", client.User.Username)
