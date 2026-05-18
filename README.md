@@ -34,3 +34,6 @@ curl http://localhost:8080/api/rooms
 # Health check
 curl http://localhost:8080/health
 
+# Connect WebSocket (use Postman)
+ws://localhost:8080/ws?username=Alice&room_id=<room_id>
+```
