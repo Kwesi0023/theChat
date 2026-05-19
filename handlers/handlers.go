@@ -12,16 +12,37 @@ import (
 	"github.com/Kwesi0023/theChat/database"
 	"github.com/Kwesi0023/theChat/models"
 
-	//c "github.com/Kwesi0023/theChat/websocket"
 	ws "github.com/Kwesi0023/theChat/websocket"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
 
+// JWT Configuration
+const JWTSecret = "your-jwt-secret" // TODO: Use environment variable in production
+
+// Claims represents the JWT claims structure
+type Claims struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+	jwt.RegisteredClaims
+}
+
+// LoginRequest represents the request body for login
+type LoginRequest struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// LoginResponse represents the response body for successful login
+type LoginResponse struct {
+	Token   string `json:"token"`
+	Message string `json:"message"`
+}
+
 // Global WebSocket hub
 var Hub *ws.Hub
-
-// var Client *c.Client
 
 // Initialize sets up the handlers hub
 func Initialize() {
@@ -30,8 +51,7 @@ func Initialize() {
 
 // CreateRoomRequest represents the request body for creating a room
 type CreateRoomRequest struct {
-	Name      string `json:"name"`
-	CreatorID string `json:"creator_id"` // String ID of the room creator
+	Name string `json:"name"`
 }
 
 // WebSocketUpgrader is configured to allow local testing
@@ -57,8 +77,40 @@ var wsUpgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-// CreateRoom handles POST /api/rooms
+// CreateRoom handles POST /api/rooms - requires JWT authentication
 func CreateRoom(w http.ResponseWriter, r *http.Request) {
+	// Extract JWT token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		http.Error(w, "Missing Authorization header", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract token from "Bearer <token>" format
+	var tokenStr string
+	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		tokenStr = authHeader[7:]
+	} else {
+		http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse and validate JWT
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(JWTSecret), nil
+	})
+
+	if err != nil || !token.Valid {
+		log.Printf("Invalid JWT token: %v", err)
+		http.Error(w, "Unauthorized: invalid or expired token", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract room name from request
 	var req CreateRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -70,32 +122,16 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.TrimSpace(req.CreatorID) == "" {
-		http.Error(w, "creator_id is required", http.StatusBadRequest)
-		return
-	}
-
-	// Convert string creator_id to uint
-	creatorID, err := strconv.ParseUint(req.CreatorID, 10, 32)
-	if err != nil {
-		http.Error(w, "creator_id must be a valid number", http.StatusBadRequest)
-		return
-	}
-
-	if creatorID == 0 {
-		http.Error(w, "creator_id must be greater than 0", http.StatusBadRequest)
-		return
-	}
-
 	// Generate room ID
 	roomID := generateRoomID()
 
+	// Use authenticated user ID as creator
 	room := &models.Room{
 		ID:        roomID,
 		Name:      req.Name,
-		CreatorID: uint(creatorID),
-		Status:    "active", // default status
-		Type:      "public", // default type
+		CreatorID: claims.ID, // Automatically set from JWT
+		Status:    "active",  // default status
+		Type:      "public",  // default type
 		CreatedAt: time.Now(),
 	}
 
@@ -282,14 +318,40 @@ func DeleteRoom(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Room deleted successfully"})
 }
 
-// ServeWs handles the WebSocket upgrade and connection lifecycle
+// ServeWs handles the WebSocket upgrade and connection lifecycle with JWT token validation
 func ServeWs(w http.ResponseWriter, r *http.Request) {
-	// Extract username and room_id from query parameters (validated by middleware)
-	username := strings.TrimSpace(r.URL.Query().Get("username"))
-	roomID := strings.TrimSpace(r.URL.Query().Get("room_id"))
-	roomName := strings.TrimSpace(r.URL.Query().Get("room_name")) // Optional, for logging
+	// Extract JWT token from query parameter
+	tokenStr := strings.TrimSpace(r.URL.Query().Get("token"))
+	if tokenStr == "" {
+		log.Println("WebSocket connection attempt: missing token")
+		http.Error(w, "Unauthorized: token is required", http.StatusUnauthorized)
+		return
+	}
 
-	log.Printf("WebSocket connection attempt: username=%s, room_id=%s, room_name=%s", username, roomID, roomName)
+	// Parse and validate the JWT token
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(JWTSecret), nil
+	})
+
+	if err != nil || !token.Valid {
+		log.Printf("Invalid JWT token: %v", err)
+		http.Error(w, "Unauthorized: invalid or expired token", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract room_name from query parameter
+	roomName := strings.TrimSpace(r.URL.Query().Get("room_name"))
+	if roomName == "" {
+		log.Println("WebSocket connection attempt: missing room_name")
+		http.Error(w, "Bad request: room_name is required", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("WebSocket connection attempt: user_id=%d, username=%s, room_name=%s", claims.ID, claims.Username, roomName)
 
 	// Check room status using raw SQL (before upgrade)
 	status, err := database.GetRoomStatus(roomName)
@@ -314,14 +376,13 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("WebSocket connection established for user %s in room %s (status: %s)", username, roomID, status)
+	log.Printf("WebSocket connection established for user %s (ID:%d) in room %s (status: %s)", claims.Username, claims.ID, roomName, status)
 
-	// Create user model with generated user ID
-
+	// Create user model from verified JWT claims
 	user := &models.User{
-		ID:       0, // Will be assigned from userID string if needed, otherwise use as reference
-		Username: username,
-
+		ID:       claims.ID,
+		Username: claims.Username,
+		RoomID:   roomName,
 		JoinedAt: time.Now(),
 	}
 
@@ -352,12 +413,12 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 			RoomID:   roomName,
 		}
 		client.Send <- historyMsg
-		log.Printf("Sent %d message history items to user %s", len(messages), username)
+		log.Printf("Sent %d message history items to user %s", len(messages), user.Username)
 	}
 
 	// If room is archived, send read-only notification
 	if status == "archived" {
-		log.Printf("%s connected to archived room %s (read-only)", username, roomName)
+		log.Printf("%s connected to archived room %s (read-only)", user.Username, roomName)
 		readOnlyMsg := models.WebSocketMessage{
 			Type:    "system",
 			Content: "This room is read-only. You can view messages but cannot send new ones.",
@@ -366,7 +427,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save join message silently (no broadcast)
-	if err := database.SaveSilentJoinMessage(roomName, user.ID, username); err != nil {
+	if err := database.SaveSilentJoinMessage(roomName, user.ID, user.Username); err != nil {
 		log.Printf("Failed to save silent join message: %v", err)
 	}
 
@@ -376,7 +437,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 	// Concurrency: Start two separate goroutines
 	client.Start()
 
-	log.Printf("Client goroutines started for user %s", username)
+	log.Printf("Client goroutines started for user %s", user.Username)
 }
 
 // HealthCheck handles GET /health
@@ -385,6 +446,103 @@ func HealthCheck(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{
 		"status": "ok",
 	})
+}
+
+// Login handles POST /api/auth/login
+func Login(w http.ResponseWriter, r *http.Request) {
+	var req LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if strings.TrimSpace(req.Username) == "" {
+		http.Error(w, "username is required", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.Password) == "" {
+		http.Error(w, "password is required", http.StatusBadRequest)
+		return
+	}
+
+	// Authenticate user
+	user, err := database.AuthenticateUser(req.Username, req.Password)
+	if err != nil {
+		log.Printf("Authentication failed for user %s: %v", req.Username, err)
+		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+		return
+	}
+
+	// Create JWT claims
+	expirationTime := time.Now().Add(24 * time.Hour)
+	claims := &Claims{
+		ID:       user.ID,
+		Username: user.Username,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	// Create and sign the JWT token
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(JWTSecret))
+	if err != nil {
+		log.Printf("Failed to sign token: %v", err)
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	// Return token in response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(LoginResponse{
+		Token:   tokenString,
+		Message: "Login successful",
+	})
+	log.Printf("User %s logged in successfully", user.Username)
+}
+
+// Register handles POST /api/auth/register
+func Register(w http.ResponseWriter, r *http.Request) {
+	var req models.RegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if strings.TrimSpace(req.Username) == "" {
+		http.Error(w, "username is required", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.Email) == "" {
+		http.Error(w, "email is required", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.Password) == "" {
+		http.Error(w, "password is required", http.StatusBadRequest)
+		return
+	}
+
+	// Register the user
+	if err := database.RegisterUser(req.Username, req.Email, req.Password); err != nil {
+		log.Printf("Registration failed for user %s: %v", req.Username, err)
+		http.Error(w, "Registration failed: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message":  "User registered successfully",
+		"username": req.Username,
+	})
+	log.Printf("User %s registered successfully", req.Username)
 }
 
 // Helper functions
