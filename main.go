@@ -10,7 +10,6 @@ import (
 
 	"github.com/Kwesi0023/theChat/database"
 	"github.com/Kwesi0023/theChat/handlers"
-	"github.com/Kwesi0023/theChat/middleware"
 	_ "github.com/Kwesi0023/theChat/websocket"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -45,6 +44,9 @@ func main() {
 	router := mux.NewRouter()
 
 	// REST API endpoints
+	// Authentication endpoints
+	router.HandleFunc("/api/auth/register", handlers.Register).Methods("POST")
+	router.HandleFunc("/api/auth/login", handlers.Login).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.CreateRoom).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.GetAllRooms).Methods("GET")
 	router.HandleFunc("/api/rooms/{id}/messages", handlers.GetRoomMessages).Methods("GET")
@@ -58,8 +60,8 @@ func main() {
 	// Health check
 	router.HandleFunc("/health", handlers.HealthCheck).Methods("GET")
 
-	// WebSocket endpoint with auth middleware
-	router.HandleFunc("/ws", middleware.AuthMiddleware(handlers.ServeWs)).Methods("GET")
+	// WebSocket endpoint with JWT validation
+	router.HandleFunc("/ws", handlers.ServeWs).Methods("GET")
 
 	// Setup graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -77,4 +79,5 @@ func main() {
 	sig := <-sigChan
 	fmt.Printf("\nReceived signal: %v\n", sig)
 	log.Println("Shutting down server...")
+	log.Println("Server has been shut down")
 }
