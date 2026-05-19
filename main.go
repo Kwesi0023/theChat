@@ -44,7 +44,6 @@ func main() {
 	router := mux.NewRouter()
 
 	// REST API endpoints
-	// Authentication endpoints
 	router.HandleFunc("/api/auth/register", handlers.Register).Methods("POST")
 	router.HandleFunc("/api/auth/login", handlers.Login).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.CreateRoom).Methods("POST")
