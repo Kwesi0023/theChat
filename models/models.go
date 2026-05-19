@@ -17,15 +17,24 @@ type Message struct {
 
 // User represents an active user in a room
 type User struct {
-	ID       uint      `json:"id"`
-	Username string    `json:"username"`
-	RoomID   uint      `json:"room_id"`
-	JoinedAt time.Time `json:"joined_at"`
-	Is_Admin bool      `json:"is_admin"`
+	ID            uint      `json:"id"`
+	Username      string    `json:"username"`
+	Email         string    `json:"email,omitempty"`
+	RoomID        string    `json:"room_id,omitempty"`
+	Password_hash string    `json:"-"` // Exclude from JSON responses
+	JoinedAt      time.Time `json:"joined_at,omitempty"`
+	Is_Admin      bool      `json:"is_admin"`
 }
 
 // AuthRequest represents the authentication payload for WebSocket
 type AuthRequest struct {
 	Username string `json:"username"`
 	RoomID   uint   `json:"room_id"`
+}
+
+// RegisterRequest represents the request body for user registration
+type RegisterRequest struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
