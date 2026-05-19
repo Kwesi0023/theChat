@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Kwesi0023/theChat/models"
+	"golang.org/x/crypto/bcrypt"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -271,4 +272,43 @@ func CloseDB() error {
 		return DB.Close()
 	}
 	return nil
+}
+
+// RegisterUser hashes the password and inserts a new user into the database
+func RegisterUser(username, email, password string) error {
+	// Hash the password using bcrypt with default cost
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	query := "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)"
+	_, err = DB.Exec(query, username, email, string(hashedPassword))
+	if err != nil {
+		return fmt.Errorf("failed to register user: %w", err)
+	}
+
+	return nil
+}
+
+// AuthenticateUser retrieves a user by username and verifies the password hash
+func AuthenticateUser(username, password string) (*models.User, error) {
+	query := "SELECT id, username, email, password_hash FROM users WHERE username = ?"
+	row := DB.QueryRow(query, username)
+
+	var user models.User
+	var passwordHash string
+
+	err := row.Scan(&user.ID, &user.Username, &user.Email, &passwordHash)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	// Verify the password against the stored hash
+	err = bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password))
+	if err != nil {
+		return nil, fmt.Errorf("invalid password: %w", err)
+	}
+
+	return &user, nil
 }
