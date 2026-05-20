@@ -19,11 +19,15 @@ import (
 )
 
 // JWT Configuration
+// JWTSecret is used for signing and validating JWT tokens.
+// WARNING: In production, load this from environment variables.
 const JWTSecret = "your-jwt-secret" // TODO: Use environment variable in production
 
-// Claims represents the JWT claims structure
+// Claims represents the JWT claims structure with verified user identity.
+// The ID field is the auto-incremented primary key from the users database table,
+// ensuring the authenticated user's true database identity is embedded in every token.
 type Claims struct {
-	ID       uint   `json:"id"`
+	ID       uint   `json:"id"` // Verified database user_id (primary key from users table)
 	Username string `json:"username"`
 	jwt.RegisteredClaims
 }
@@ -78,6 +82,9 @@ var wsUpgrader = websocket.Upgrader{
 }
 
 // CreateRoom handles POST /api/rooms - requires JWT authentication
+// SECURITY: creator_id is automatically extracted from the authenticated JWT token.
+// The frontend CANNOT pass or override a creator_id in the request body.
+// This ensures room ownership is tied to the verified database user_id from the JWT claims.
 func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	// Extract JWT token from Authorization header
 	authHeader := r.Header.Get("Authorization")
@@ -95,7 +102,8 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse and validate JWT
+	// Parse and validate JWT using the secret key
+	// This ensures only tokens signed with our secret can be accepted
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -105,8 +113,8 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil || !token.Valid {
-		log.Printf("Invalid JWT token: %v", err)
-		http.Error(w, "Unauthorized: invalid or expired token", http.StatusUnauthorized)
+		log.Printf("CreateRoom - Invalid JWT token - Error: %v | Token Valid: %v | Claims ID: %v", err, token.Valid, claims.ID)
+		http.Error(w, fmt.Sprintf("Unauthorized: %v", err), http.StatusUnauthorized)
 		return
 	}
 
@@ -125,19 +133,21 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	// Generate room ID
 	roomID := generateRoomID()
 
-	// Use authenticated user ID as creator
+	// SECURITY: Use verified user_id from JWT claims as room creator
+	// claims.ID is the auto-incremented user PK from the database, not user-supplied
+	// This guarantees the room creator is the authenticated user - no spoofing possible
 	room := &models.Room{
 		ID:        roomID,
 		Name:      req.Name,
-		CreatorID: claims.ID, // Automatically set from JWT
+		CreatorID: claims.ID, // Automatically set from verified JWT claims
 		Status:    "active",  // default status
 		Type:      "public",  // default type
 		CreatedAt: time.Now(),
 	}
 
 	if err := database.CreateRoom(room); err != nil {
-		log.Printf("Failed to create room: %v", err)
-		http.Error(w, "Failed to create room", http.StatusInternalServerError)
+		log.Printf("CreateRoom - Database error: %v | Room ID: %s | Creator ID: %d | Room Name: %s", err, room.ID, room.CreatorID, room.Name)
+		http.Error(w, fmt.Sprintf("Failed to create room: %v", err), http.StatusInternalServerError)
 		return
 	}
 
