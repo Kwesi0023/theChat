@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Kwesi0023/theChat/database"
 	"github.com/Kwesi0023/theChat/handlers"
@@ -78,5 +79,7 @@ func main() {
 	sig := <-sigChan
 	fmt.Printf("\nReceived signal: %v\n", sig)
 	log.Println("Shutting down server...")
-	log.Println("Server has been shut down")
+
+	time.Sleep(3 * time.Second)
+	fmt.Println("Server has been shut down")
 }
