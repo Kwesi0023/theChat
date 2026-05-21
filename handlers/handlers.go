@@ -60,23 +60,23 @@ type CreateRoomRequest struct {
 
 // WebSocketUpgrader is configured to allow local testing
 var wsUpgrader = websocket.Upgrader{
-	/*
-		CheckOrigin: func(r *http.Request) bool {
-			// Allow connections from localhost for testing
-			origin := r.Header.Get("Origin")
-			if origin == "" {
-				return true
-			}
 
-			// In production, validate the origin against your allowed hosts
-			// we might just use one of this.. usually the localhost
-			return strings.HasPrefix(origin, "http://localhost") ||
-				strings.HasPrefix(origin, "http://127.0.0.1") ||
-				strings.HasPrefix(origin, "ws://localhost") ||
-				strings.HasPrefix(origin, "ws://127.0.0.1")
+	CheckOrigin: func(r *http.Request) bool {
+		// Allow connections from localhost for testing
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
 
-		},
-	*/
+		// In production, validate the origin against your allowed hosts
+		// we might just use one of this.. usually the localhost
+		return strings.HasPrefix(origin, "http://localhost") ||
+			strings.HasPrefix(origin, "http://127.0.0.1") ||
+			strings.HasPrefix(origin, "ws://localhost") ||
+			strings.HasPrefix(origin, "ws://127.0.0.1")
+
+	},
+
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 }
@@ -130,8 +130,8 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate room ID
-	roomID := generateRoomID()
+	// Gets the room ID from the db or probabaly generates a new id
+	roomID := r.URL.Query().Get("roomID")
 
 	// SECURITY: Use verified user_id from JWT claims as room creator
 	// claims.ID is the auto-incremented user PK from the database, not user-supplied
@@ -184,7 +184,28 @@ func GetRoomMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// GetAllRooms handles GET /api/rooms
+func JoinRoom(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RoomID string `json:"room_id"`
+		UserID string `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if strings.TrimSpace(req.RoomID) == "" {
+		http.Error(w, "room_id is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.RoomID) == "" {
+		http.Error(w, "user_id is required", http.StatusBadRequest)
+		return
+	}
+}
+
+// handles GET /api/rooms
 func GetAllRooms(w http.ResponseWriter, r *http.Request) {
 	rooms, err := database.GetAllRooms()
 	if err != nil {
@@ -207,7 +228,7 @@ type UpdateRoomStatusRequest struct {
 	IsAdmin bool   `json:"is_admin"` // Whether user has admin privileges
 }
 
-// UpdateRoomStatus handles PATCH /api/rooms/{id}/status - only creator or admin can change status
+// handles PATCH /api/rooms/{id}/status - only creator or admin can change status
 func UpdateRoomStatus(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
@@ -353,27 +374,27 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract room_name from query parameter
-	roomName := strings.TrimSpace(r.URL.Query().Get("room_name"))
-	if roomName == "" {
-		log.Println("WebSocket connection attempt: missing room_name")
-		http.Error(w, "Bad request: room_name is required", http.StatusBadRequest)
+	// Extract roomID from query parameter (required)
+	roomID := strings.TrimSpace(r.URL.Query().Get("room_id"))
+	if roomID == "" {
+		log.Println("WebSocket connection attempt: missing roomID")
+		http.Error(w, "Bad request: roomID is required (connect with /ws?token=<JWT>&roomID=<id>)", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("WebSocket connection attempt: user_id=%d, username=%s, room_name=%s", claims.ID, claims.Username, roomName)
+	log.Printf("WebSocket connection attempt: user_id=%d, username=%s, roomID=%s", claims.ID, claims.Username, roomID)
 
 	// Check room status using raw SQL (before upgrade)
-	status, err := database.GetRoomStatus(roomName)
+	status, err := database.GetRoomStatus(roomID)
 	if err != nil {
-		log.Printf("Room not found: %s", roomName)
+		log.Printf("Room not found: %s", roomID)
 		http.Error(w, "Room not found", http.StatusNotFound)
 		return
 	}
 
 	// Handle room status logic
 	if status == "hidden" {
-		log.Printf("Attempted access to hidden room: %s", roomName)
+		log.Printf("Attempted access to hidden room: %s", roomID)
 		http.Error(w, "Room not found", http.StatusNotFound)
 		return
 	}
@@ -386,22 +407,22 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("WebSocket connection established for user %s (ID:%d) in room %s (status: %s)", claims.Username, claims.ID, roomName, status)
+	log.Printf("WebSocket connection established for user %s (ID:%d) in room %s (status: %s)", claims.Username, claims.ID, roomID, status)
 
 	// Create user model from verified JWT claims
 	user := &models.User{
 		ID:       claims.ID,
 		Username: claims.Username,
-		RoomID:   roomName,
+		RoomID:   roomID,
 		JoinedAt: time.Now(),
 	}
 
 	// The Hand-Off: Get or create room hub and create client
-	roomHub := Hub.GetOrCreateRoomHub(roomName)
+	roomHub := Hub.GetOrCreateRoomHub(roomID)
 	client := ws.NewClient(conn, roomHub, user, status)
 
 	// Fetch message history(descending order)
-	messages, err := database.GetLastMessages(roomName, 50)
+	messages, err := database.GetLastMessages(roomID, 50)
 	if err != nil {
 
 		log.Printf("Failed to fetch message history: %v", err)
@@ -420,7 +441,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		historyMsg := models.WebSocketMessage{
 			Type:     "history",
 			Messages: messages,
-			RoomID:   roomName,
+			RoomID:   roomID,
 		}
 		client.Send <- historyMsg
 		log.Printf("Sent %d message history items to user %s", len(messages), user.Username)
@@ -428,7 +449,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 
 	// If room is archived, send read-only notification
 	if status == "archived" {
-		log.Printf("%s connected to archived room %s (read-only)", user.Username, roomName)
+		log.Printf("%s connected to archived room %s (read-only)", user.Username, roomID)
 		readOnlyMsg := models.WebSocketMessage{
 			Type:    "system",
 			Content: "This room is read-only. You can view messages but cannot send new ones.",
@@ -436,10 +457,20 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		client.Send <- readOnlyMsg
 	}
 
-	// Save join message silently (no broadcast)
-	if err := database.SaveSilentJoinMessage(roomName, user.ID, user.Username); err != nil {
-		log.Printf("Failed to save silent join message: %v", err)
+	// Save join message and broadcast it
+	if err := database.SaveMessageWithType(&models.Message{
+		ID:        user.Username + "-join-" + time.Now().Format("20060102150405"),
+		RoomID:    roomID,
+		UserID:    user.ID,
+		Username:  user.Username,
+		Content:   "[" + user.Username + "] connected",
+		MsgType:   "join",
+		Timestamp: time.Now(),
+	}); err != nil {
+		log.Printf("Failed to save join message: %v", err)
 	}
+
+	roomHub.BroadcastJoinNotification(user)
 
 	// Register client with the room hub, passing the room status
 	roomHub.RegisterWithStatus(client, status)
