@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/Kwesi0023/theChat/models"
-	"golang.org/x/crypto/bcrypt"
 	_ "github.com/go-sql-driver/mysql"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var DB *sql.DB
@@ -96,7 +96,8 @@ func GetAllRooms() ([]*models.Room, error) {
 	var rooms []*models.Room
 	for rows.Next() {
 		room := &models.Room{}
-		err := rows.Scan(&room.ID, &room.Name, &room.Description, &room.CreatorID, &room.Status, &room.Type, &room.CreatedAt)
+		err := rows.Scan(
+			&room.ID, &room.Name, &room.Description, &room.CreatorID, &room.Status, &room.Type, &room.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
