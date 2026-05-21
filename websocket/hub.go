@@ -3,6 +3,7 @@ package websocket
 import (
 	"log"
 	"sync"
+	"time"
 
 	"github.com/Kwesi0023/theChat/database"
 	"github.com/Kwesi0023/theChat/models"
@@ -71,7 +72,7 @@ func (rh *RoomHub) run() {
 			rh.users[client.User.Username] = client.User
 			rh.mu.Unlock()
 
-			log.Printf("User %s joined room %s", client.User.Username, rh.roomID)
+			log.Printf("User: %s, joined room %s successfully", client.User.Username, rh.roomID)
 
 			// Broadcast user list to all clients
 			rh.broadcastUserList()
@@ -86,11 +87,21 @@ func (rh *RoomHub) run() {
 
 				log.Printf("User %s left room %s", client.User.Username, rh.roomID)
 
-				// Silently save leave message to database (no broadcast)
-				if err := database.SaveSilentLeaveMessage(rh.roomID, client.User.ID, client.User.Username); err != nil {
-					log.Printf("Failed to save silent leave message: %v", err)
+				// Save leave message and broadcast it
+				if err := database.SaveMessageWithType(&models.Message{
+					ID:        client.User.Username + "-leave-" + time.Now().Format("20060102150405"),
+					RoomID:    rh.roomID,
+					UserID:    client.User.ID,
+					Username:  client.User.Username,
+					Content:   "[" + client.User.Username + "] disconnected",
+					MsgType:   "leave",
+					Timestamp: time.Now(),
+				}); err != nil {
+					log.Printf("Failed to save leave message: %v", err)
 				}
 
+				rh.broadcastUserList()
+				rh.BroadcastLeaveNotification(client.User.Username)
 			} else {
 				rh.mu.Unlock()
 			}
