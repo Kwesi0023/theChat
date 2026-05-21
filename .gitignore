@@ -32,3 +32,10 @@ Thumbs.db
 *.png
 *.jpg
 *.webp
+
+
+#Postman
+*.postman
+*.postman_collection.json
+*.postman_environment.json
+
