@@ -2,32 +2,32 @@
 
 ## Project Setup
 - [X] Initialize Go module and project structure
-- [ ] Set up main.go with server initialization
-- [ ] Configure database (PostgreSQL/SQLite) connection
-- [ ] Set up logging and error handling
+- [X] Set up main.go with server initialization
+- [X] Configure database (PostgreSQL/SQLite) connection
+- [X] Set up logging and error handling
 
 ## Data Models
-- [ ] Define Room struct (ID, name, created_at)
-- [ ] Define Message struct (ID, room_id, user_id, content, reactions, timestamp)
-- [ ] Define User struct (ID, username, room_id, joined_at)
-- [ ] Design database schema and create migrations
+- [X] Define Room struct (ID, name, created_at)
+- [X] Define Message struct (ID, room_id, user_id, content, reactions, timestamp)
+- [X] Define User struct (ID, username, room_id, joined_at)
+- [X] Design database schema
 
 ## Database Layer
-- [ ] Implement room repository (create, fetch by ID, list all)
+- [X] Implement room repository (create, fetch by ID, list all)
 - [ ] Implement message repository (save, fetch by room, delete)
 - [ ] Implement user repository (create, fetch, delete)
 - [ ] Set up connection pooling and transaction handling
 
 ## REST API Endpoints
-- [ ] POST /api/rooms - create a room
-- [ ] GET /api/rooms/{id}/messages - fetch message history for a room
-- [ ] Basic error handling and HTTP status codes
-- [ ] Input validation for API requests
+- [X] POST /api/rooms - create a room
+- [X] GET /api/rooms/{id}/messages - fetch message history for a room
+- [X] Basic error handling and HTTP status codes
+- [X] Input validation for API requests
 
 ## WebSocket Server Foundation
-- [ ] Set up WebSocket upgrade handler
+- [X] Set up WebSocket upgrade handler
 - [ ] Implement connection lifecycle (connect, disconnect, reconnect)
-- [ ] Design message protocol/frame format (JSON event structure)
+- [X] Design message protocol/frame format (JSON event structure)
 - [ ] Create connection manager to track active clients
 
 ## WebSocket Events - User Management
@@ -65,6 +65,6 @@
 ## Documentation & Polish
 - [ ] Write API documentation
 - [ ] Document WebSocket event protocol
-- [ ] Add code comments for complex logic
-- [ ] Add graceful shutdown handling
+- [X] Add code comments for complex logic
+- [X] Add graceful shutdown handling
 - [ ] Review event-driven architecture patterns
