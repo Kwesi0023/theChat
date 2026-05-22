@@ -36,6 +36,11 @@ func NewHub() *Hub {
 
 }
 
+// JoinRoom sends a client connection into the unexported registration channel safely across packages
+func (rh *RoomHub) JoinRoom(client *Client) {
+	rh.register <- client
+}
+
 // GetOrCreateRoomHub returns an existing room hub or creates a new one
 func (h *Hub) GetOrCreateRoomHub(roomID string) *RoomHub {
 	h.mu.Lock()
