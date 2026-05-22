@@ -18,6 +18,16 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Setup the Gorilla WebSocket Upgrader configuration for this file
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		// Allows testing across environments locally
+		return true
+	},
+}
+
 // LoginRequest represents the request body for login
 type LoginRequest struct {
 	Username string `json:"username"`
@@ -42,29 +52,6 @@ func Initialize() {
 // CreateRoomRequest represents the request body for creating a room
 type CreateRoomRequest struct {
 	Name string `json:"name"`
-}
-
-// WebSocketUpgrader is configured to allow local testing
-var wsUpgrader = websocket.Upgrader{
-
-	CheckOrigin: func(r *http.Request) bool {
-		// Allow connections from localhost for testing
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			return true
-		}
-
-		// In production, validate the origin against your allowed hosts
-		// we might just use one of this.. usually the localhost
-		return strings.HasPrefix(origin, "http://localhost") ||
-			strings.HasPrefix(origin, "http://127.0.0.1") ||
-			strings.HasPrefix(origin, "ws://localhost") ||
-			strings.HasPrefix(origin, "ws://127.0.0.1")
-
-	},
-
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
 }
 
 // CreateRoom handles POST /api/rooms - requires JWT authentication
@@ -98,22 +85,14 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	// 2. Derive unique ID slug (e.g., "The General Lounge" -> "the-general-lounge")
 	roomID := strings.ToLower(strings.ReplaceAll(req.Name, " ", "-"))
 
-	Status := "active"
-	if Status == "" {
-		Status = "active"
-	}
-	Type := "public"
-	if Type == "" {
-		Type = "public"
-	}
-
 	room := &models.Room{
-		ID:        roomID,
-		Name:      req.Name,
-		CreatorID: creator_id, // Passed explicitly from client storage now
-		Status:    "public",
-		Type:      "active",
-		CreatedAt: time.Now(),
+		ID:          roomID,
+		Name:        req.Name,
+		Description: "Welcome to the " + req.Name + " chat room",
+		CreatorID:   0,
+		Status:      "public",
+		Type:        "active",
+		CreatedAt:   time.Now(),
 	}
 
 	if err := database.CreateRoom(room); err != nil {
@@ -366,7 +345,8 @@ func ServeWs(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 
 	roomHub := hub.GetOrCreateRoomHub(roomID)
 	client := ws.NewClient(conn, roomHub, userModel, room.Status)
-	roomHub.RegisterClient(client)
+
+	roomHub.JoinRoom(client)
 
 	log.Printf("WebSocket connection established for user %s (ID: %d) in room %s", username, userModel.ID, roomID)
 }
@@ -375,7 +355,7 @@ func ServeWs(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 func HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
+		"status": "oooohhhhhhh yyyhhhhhh",
 	})
 }
 
