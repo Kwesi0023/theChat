@@ -45,7 +45,7 @@ func main() {
 	router := mux.NewRouter()
 
 	// REST API endpoints
-	router.HandleFunc("/api/auth/register", handlers.Register).Methods("POST")
+
 	router.HandleFunc("/api/auth/login", handlers.Login).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.CreateRoom).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.GetAllRooms).Methods("GET")
@@ -62,9 +62,6 @@ func main() {
 
 	// Health check
 	router.HandleFunc("/health", handlers.HealthCheck).Methods("GET")
-
-	// WebSocket endpoint with JWT validation
-	router.HandleFunc("/ws", handlers.ServeWs).Methods("GET")
 
 	// Setup graceful shutdown
 	sigChan := make(chan os.Signal, 1)
