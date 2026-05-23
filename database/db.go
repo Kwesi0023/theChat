@@ -84,6 +84,17 @@ func GetRoomStatus(roomID string) (string, error) {
 	return status, nil
 }
 
+// RoomNameExists checks if a room name is already present in the database
+func RoomNameExists(name string) (bool, error) {
+	query := "SELECT COUNT(*) FROM rooms WHERE name = ?"
+	var count int
+	err := DB.QueryRow(query, name).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check room name uniqueness: %w", err)
+	}
+	return count > 0, nil
+}
+
 // GetAllRooms retrieves all rooms excluding 'hidden' status (shows 'active' and 'archived')
 func GetAllRooms() ([]*models.Room, error) {
 	query := "SELECT id, name, description, creator_id, status, type, created_at FROM rooms WHERE status IN ('active', 'archived') ORDER BY created_at DESC"
