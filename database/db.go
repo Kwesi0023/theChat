@@ -56,8 +56,8 @@ func CreateRoom(room *models.Room) error {
 	return err
 }
 
-// GetRoom retrieves a room by ID with all fields
-func GetRoom(roomID string) (*models.Room, error) {
+// GetRoom retrieves a room by ID with all fields -- --GetRoomByID would be equal to GetRooms
+func GetRoomByID(roomID string) (*models.Room, error) {
 	query := "SELECT id, name, description, creator_id, status, type, created_at FROM rooms WHERE id = ?"
 	row := DB.QueryRow(query, roomID)
 
@@ -119,26 +119,6 @@ func SaveMessageWithType(msg *models.Message) error {
 	query := "INSERT INTO messages (id, room_id, user_id, username, content, msg_type, created_at, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 	createdAt := time.Now()
 	_, err := DB.Exec(query, msg.ID, msg.RoomID, msg.UserID, msg.Username, msg.Content, msg.MsgType, createdAt, msg.Timestamp)
-	return err
-}
-
-// SaveSilentJoinMessage silently logs a join event without broadcasting
-func SaveSilentJoinMessage(roomID string, userID uint, username string) error {
-	query := "INSERT INTO messages (id, room_id, user_id, username, content, msg_type, created_at, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-	msgID := generateSystemMessageID()
-	content := fmt.Sprintf("[%s] connected", username)
-	now := time.Now()
-	_, err := DB.Exec(query, msgID, roomID, userID, username, content, "join", now, now)
-	return err
-}
-
-// SaveSilentLeaveMessage silently logs a leave event without broadcasting
-func SaveSilentLeaveMessage(roomID string, userID uint, username string) error {
-	query := "INSERT INTO messages (id, room_id, user_id, username, content, msg_type, created_at, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-	msgID := generateSystemMessageID()
-	content := fmt.Sprintf("[%s] disconnected", username)
-	now := time.Now()
-	_, err := DB.Exec(query, msgID, roomID, userID, username, content, "leave", now, now)
 	return err
 }
 
@@ -275,40 +255,26 @@ func CloseDB() error {
 	return nil
 }
 
-// RegisterUser hashes the password and inserts a new user into the database
-func RegisterUser(username, email, password string) error {
-	// Hash the password using bcrypt with default cost
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	query := "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)"
-	_, err = DB.Exec(query, username, email, string(hashedPassword))
-	if err != nil {
-		return fmt.Errorf("failed to register user: %w", err)
-	}
-
-	return nil
-}
-
 // AuthenticateUser retrieves a user by username and verifies the password hash
 func AuthenticateUser(username, password string) (*models.User, error) {
-	query := "SELECT id, username, email, password_hash FROM users WHERE username = ?"
+	query := "SELECT id, username, password_hash FROM users WHERE username = ?"
 	row := DB.QueryRow(query, username)
 
 	var user models.User
 	var passwordHash string
 
-	err := row.Scan(&user.ID, &user.Username, &user.Email, &passwordHash)
+	err := row.Scan(&user.ID, &user.Username, &passwordHash)
 	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, err
 	}
 
-	// Verify the password against the stored hash
+	// Compare plaintext password from login input against database bcrypt hash string
 	err = bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password))
 	if err != nil {
-		return nil, fmt.Errorf("invalid password: %w", err)
+		return nil, fmt.Errorf("invalid password")
 	}
 
 	return &user, nil
