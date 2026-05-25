@@ -31,14 +31,7 @@ var upgrader = websocket.Upgrader{
 // LoginRequest represents the request body for login
 type LoginRequest struct {
 	Username string `json:"username"`
-	Email    string `json:"email"`
 	Password string `json:"password"`
-}
-
-// LoginResponse represents the response body for successful login
-type LoginResponse struct {
-	Token   string `json:"token"`
-	Message string `json:"message"`
 }
 
 // Global WebSocket hub
@@ -54,8 +47,6 @@ type CreateRoomRequest struct {
 	Name string `json:"name"`
 }
 
-// CreateRoom handles POST /api/rooms - requires JWT authentication
-// SECURITY: creator_id is automatically extracted from the authenticated JWT token.
 // The frontend CANNOT pass or override a creator_id in the request body.
 // This ensures room ownership is tied to the verified database user_id from the JWT claims.
 func CreateRoom(w http.ResponseWriter, r *http.Request) {
@@ -89,9 +80,9 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		ID:          roomID,
 		Name:        req.Name,
 		Description: "Welcome to the " + req.Name + " chat room",
-		CreatorID:   0,
-		Status:      "public",
-		Type:        "active",
+		CreatorID:   0 + 1,
+		Status:      "active",
+		Type:        "public",
 		CreatedAt:   time.Now(),
 	}
 
@@ -380,7 +371,6 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		"message":  "Login successful",
 		"user_id":  user.ID,
 		"username": user.Username,
-		"email":    user.Email,
 	})
 	log.Printf("User %s logged in successfully", user.Username)
 }
