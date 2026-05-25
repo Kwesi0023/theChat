@@ -49,9 +49,9 @@ func main() {
 	router.HandleFunc("/api/auth/login", handlers.Login).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.CreateRoom).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.GetAllRooms).Methods("GET")
-	router.HandleFunc("/api/rooms/join", func(w http.ResponseWriter, r *http.Request) {
-		handlers.JoinRoom(w, r)
-	}).Methods("POST")
+	// router.HandleFunc("/api/rooms/join", func(w http.ResponseWriter, r *http.Request) {
+	// 	handlers.JoinRoom(w, r)
+	// }).Methods("POST")
 	router.HandleFunc("/api/rooms/{id}/messages", handlers.GetRoomMessages).Methods("GET")
 	router.HandleFunc("/api/rooms/{id}/status", func(w http.ResponseWriter, r *http.Request) {
 		handlers.UpdateRoomStatus(handlers.Hub, w, r)
