@@ -133,7 +133,7 @@ func SaveMessage(msg *models.Message) error {
 
 // SaveMessageWithType saves a message with msg_type to the database (raw SQL)
 func SaveMessageWithType(msg *models.Message) error {
-	query := "INSERT INTO messages (id, room_id, user_id, username, content, msg_type, created_at, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+	query := "INSERT INTO messages (id, room_id, sender_id, content, msg_type, created_at, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 	createdAt := time.Now()
 	_, err := DB.Exec(query, msg.ID, msg.RoomID, msg.UserID, msg.Username, msg.Content, msg.MsgType, createdAt, msg.Timestamp)
 	return err
@@ -151,7 +151,7 @@ func generateSystemMessageID() string {
 
 // GetLastMessages retrieves the last N messages for a room in DESC order (newest first)
 func GetLastMessages(roomID string, limit int) ([]*models.Message, error) {
-	query := "SELECT id, room_id, user_id, username, content, msg_type, created_at, timestamp FROM messages WHERE room_id = ? ORDER BY created_at DESC LIMIT ?"
+	query := "SELECT id, room_id, sender_id, content, msg_type, created_at, timestamp FROM messages WHERE room_id = ? ORDER BY created_at DESC LIMIT ?"
 	rows, err := DB.Query(query, roomID, limit)
 	if err != nil {
 		return nil, err
@@ -174,7 +174,7 @@ func GetLastMessages(roomID string, limit int) ([]*models.Message, error) {
 // GetChatHistory fetches the last 50 messages for a specific room
 func GetChatHistory(roomID string, limit int) ([]*models.Message, error) {
 	// Query: Sort by oldest first so the chat flows naturally
-	query := `SELECT id, content, username, user_id, room_id, timestamp FROM messages WHERE room_id = ? ORDER BY timestamp ASC LIMIT ?`
+	query := `SELECT id, content, sender_id, room_id, timestamp FROM messages WHERE room_id = ? ORDER BY timestamp ASC LIMIT ?`
 
 	rows, err := DB.Query(query, roomID, limit) // Assuming 'db' is your *sql.DB connection
 	if err != nil {
