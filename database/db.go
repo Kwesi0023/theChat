@@ -266,6 +266,22 @@ func CloseDB() error {
 	return nil
 }
 
+// RegisterUser hashes a password and inserts a new user record into the database
+func RegisterUser(username, password string) error {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	query := "INSERT INTO users (username, password_hash) VALUES (?, ?)"
+	_, err = DB.Exec(query, username, string(hashedPassword))
+	if err != nil {
+		return fmt.Errorf("failed to insert user into database: %w", err)
+	}
+
+	return nil
+}
+
 // AuthenticateUser retrieves a user by username and verifies the password hash
 func AuthenticateUser(username, password string) (*models.User, error) {
 	query := "SELECT id, username, password_hash FROM users WHERE username = ?"
@@ -277,7 +293,7 @@ func AuthenticateUser(username, password string) (*models.User, error) {
 	err := row.Scan(&user.ID, &user.Username, &passwordHash)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
+			return nil, fmt.Errorf("user not found") // Caught by our handler
 		}
 		return nil, err
 	}
@@ -290,3 +306,5 @@ func AuthenticateUser(username, password string) (*models.User, error) {
 
 	return &user, nil
 }
+
+//'5228
