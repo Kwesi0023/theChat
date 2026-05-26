@@ -120,9 +120,15 @@ func GetAllRooms() ([]*models.Room, error) {
 
 // SaveMessage saves a message to the database
 func SaveMessage(msg *models.Message) error {
-	query := "INSERT INTO messages (id, room_id, user_id, username, content, timestamp) VALUES (?, ?, ?, ?, ?, ?)"
-	_, err := DB.Exec(query, msg.ID, msg.RoomID, msg.UserID, msg.Username, msg.Content, msg.Timestamp)
-	return err
+	// they were not matching the db schema
+	query := `INSERT INTO messages (id, sender_id, room_id, content, msg_type, created_at) 
+	          VALUES (?, ?, ?, ?, ?, ?)`
+
+	_, err := DB.Exec(query, msg.ID, msg.UserID, msg.RoomID, msg.Content, msg.MsgType, msg.CreatedAt)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // SaveMessageWithType saves a message with msg_type to the database (raw SQL)
