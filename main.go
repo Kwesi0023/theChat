@@ -45,13 +45,13 @@ func main() {
 	router := mux.NewRouter()
 
 	// REST API endpoints
+	router.HandleFunc("/api/rooms/join", func(w http.ResponseWriter, r *http.Request) {
+		handlers.JoinRoom(w, r)
+	}).Methods("POST")
 
 	router.HandleFunc("/api/auth/login", handlers.Login).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.CreateRoom).Methods("POST")
 	router.HandleFunc("/api/rooms", handlers.GetAllRooms).Methods("GET")
-	router.HandleFunc("/api/rooms/join", func(w http.ResponseWriter, r *http.Request) {
-		handlers.JoinRoom(w, r)
-	}).Methods("POST")
 	router.HandleFunc("/api/rooms/{id}/messages", handlers.GetRoomMessages).Methods("GET")
 	router.HandleFunc("/api/rooms/{id}/status", func(w http.ResponseWriter, r *http.Request) {
 		handlers.UpdateRoomStatus(handlers.Hub, w, r)
@@ -62,6 +62,10 @@ func main() {
 
 	// Health check
 	router.HandleFunc("/health", handlers.HealthCheck).Methods("GET")
+	// webSocket endpoint
+	router.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		handlers.ServeWs(handlers.Hub, w, r)
+	}).Methods("GET")
 
 	// Setup graceful shutdown
 	sigChan := make(chan os.Signal, 1)
