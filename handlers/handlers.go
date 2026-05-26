@@ -127,8 +127,9 @@ func GetRoomMessages(w http.ResponseWriter, r *http.Request) {
 
 func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		RoomID string `json:"room_id"`
-		UserID string `json:"user_id"`
+		RoomID   string `json:"room_id"`
+		UserID   string `json:"user_id"`
+		Username string `json:"username"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -142,6 +143,10 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.RoomID) == "" {
 		http.Error(w, "user_id is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Username) == "" {
+		http.Error(w, "username is required", http.StatusBadRequest)
 		return
 	}
 }
@@ -288,6 +293,7 @@ func DeleteRoom(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Room deleted successfully"})
+	//'5228
 }
 
 // ServeWs handles the WebSocket upgrade and connection lifecycle with JWT token validation
@@ -357,18 +363,47 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-
-	user, err := database.AuthenticateUser(req.Username, req.Password)
-	if err != nil {
-		log.Printf("Authentication failed for user %s: %v", req.Username, err)
-		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+	// 2. Validate that the fields are not empty or full of white spaces
+	req.Username = strings.TrimSpace(req.Username)
+	req.Password = strings.TrimSpace(req.Password)
+	if req.Username == "" || req.Password == "" {
+		http.Error(w, "Username and password cannot be empty", http.StatusBadRequest)
 		return
+	}
+	// Step 1: Attempt to authenticate the user assuming they already exist
+	user, err := database.AuthenticateUser(req.Username, req.Password)
+	//0423
+	if err != nil {
+		// Step 2: If user wasn't found, seamlessly register them right now!
+		if err.Error() == "user not found" {
+			time.Sleep(3 * time.Second)
+			log.Printf("User %s not found. Attempting automatic registration...", req.Username)
+
+			err = database.RegisterUser(req.Username, req.Password)
+			if err != nil {
+				log.Printf("Automatic registration failed for %s: %v", req.Username, err)
+				http.Error(w, "Failed to create user profile", http.StatusInternalServerError)
+				return
+			}
+
+			// Try authenticating one more time now that they are registered successfully
+			user, err = database.AuthenticateUser(req.Username, req.Password)
+			if err != nil {
+				http.Error(w, "Authentication failed after registration", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			// If user was found but password didn't match
+			log.Printf("User %s was not aunthenicated: %v", req.Username, err)
+			http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message":  "Login successful",
+		"message":  "Congrats, Login successful",
 		"user_id":  user.ID,
 		"username": user.Username,
 	})
