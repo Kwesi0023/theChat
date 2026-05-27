@@ -345,6 +345,9 @@ func ServeWs(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 
 	roomHub.JoinRoom(client)
 
+	go client.WritePump() // Starts monitoring the outbound Send channel
+	client.ReadPump()     // Starts reading incoming data from browser (Blocks thread)
+
 	log.Printf("WebSocket connection established for user %s (ID: %d) in room %s", username, userModel.ID, roomID)
 }
 
