@@ -48,55 +48,61 @@ func NewClient(conn *websocket.Conn, roomHub *RoomHub, user *models.User, roomSt
 
 // Start initiates the client's read and write goroutines
 func (c *Client) Start() {
-	go c.readPump()
-	go c.writePump()
+	go c.ReadPump()
+	go c.WritePump()
 }
 
 // readPump reads messages from the WebSocket connection and broadcasts them to the hub
-func (c *Client) readPump() {
+func (c *Client) ReadPump() {
 	defer func() {
 		c.roomHub.unregister <- c
 		c.conn.Close()
 	}()
 
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(pongWait))
-		return nil
-	})
 	c.conn.SetReadLimit(maxMessageSize)
+	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 
 	for {
-		_, message, err := c.conn.ReadMessage()
+		_, messageBytes, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
+				log.Printf("error: %v", err)
 			}
 			break
 		}
 
 		var wsMsg models.WebSocketMessage
-		if err := json.Unmarshal(message, &wsMsg); err != nil {
-			log.Printf("Failed to unmarshal message: %v", err)
+		if err := json.Unmarshal(messageBytes, &wsMsg); err != nil {
+			log.Printf("error unmarshaling message: %v", err)
 			continue
 		}
 
-		// Process different message types
+		// Look for your type switch block inside the loop
 		switch wsMsg.Type {
 		case "message":
-			c.handleMessage(wsMsg)
+			// 1. Fill out the message sender identity details
+			wsMsg.Username = c.User.Username
+			wsMsg.UserID = c.User.ID
+			wsMsg.RoomID = c.roomHub.roomID
+			wsMsg.Timestamp = time.Now()
+
+			// 2. Save the message to the database first (optional, based on your implementation)
+			// database.SaveMessage(...)
+			// case "history" :
+			//c.handlehistory(&wsMsg)
+
+			// EXACT PLACE TO PASTE: Send the enriched payload into the active RoomHub broadcast pipe
+			c.roomHub.broadcast <- wsMsg
+
 		case "reaction":
 			c.handleReaction(wsMsg)
-		case "history":
-			c.handleHistory(wsMsg)
-		default:
-			log.Printf("Unknown message type: %s", wsMsg.Type)
 		}
 	}
 }
 
 // writePump writes messages from the hub's broadcast channel to the WebSocket connection
-func (c *Client) writePump() {
+func (c *Client) WritePump() {
 	ticker := time.NewTicker(pingInterval)
 	defer func() {
 		ticker.Stop()
