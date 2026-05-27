@@ -3,7 +3,6 @@ package websocket
 import (
 	"log"
 	"sync"
-	"time"
 
 	"github.com/Kwesi0023/theChat/database"
 	"github.com/Kwesi0023/theChat/models"
@@ -46,29 +45,33 @@ func (h *Hub) GetOrCreateRoomHub(roomID string) *RoomHub {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if hub, exists := h.rooms[roomID]; exists {
-		return hub
+	// If the room hub already exists, just return it cleanly
+	if room, exists := h.rooms[roomID]; exists {
+		return room
 	}
 
+	// Create a completely fresh RoomHub configuration instance
 	roomHub := &RoomHub{
 		roomID:     roomID,
-		roomStatus: "active", // default status
+		roomStatus: "active",
 		clients:    make(map[*Client]bool),
 		users:      make(map[string]*models.User),
-		broadcast:  make(chan interface{}, 256),
+		broadcast:  make(chan interface{}),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 	}
 
 	h.rooms[roomID] = roomHub
-	go roomHub.run()
 
-	log.Printf("Created new room: %v", roomID)
+	// CRITICAL FIX: Spin up the room's background event channel thread!
+	go roomHub.Run()
+
+	log.Printf("Created new live background channel worker loop for room: %s", roomID)
 	return roomHub
 }
 
 // run manages client registrations, unregistrations, and message broadcasting for a room
-func (rh *RoomHub) run() {
+func (rh *RoomHub) Run() {
 	for {
 		select {
 		case client := <-rh.register:
@@ -76,10 +79,7 @@ func (rh *RoomHub) run() {
 			rh.clients[client] = true
 			rh.users[client.User.Username] = client.User
 			rh.mu.Unlock()
-
-			log.Printf("User: %s, joined room %s successfully", client.User.Username, rh.roomID)
-
-			// Broadcast user list to all clients
+			log.Printf("User %s joined room hub %s", client.User.Username, rh.roomID)
 			rh.broadcastUserList()
 
 		case client := <-rh.unregister:
@@ -88,37 +88,21 @@ func (rh *RoomHub) run() {
 				delete(rh.clients, client)
 				delete(rh.users, client.User.Username)
 				close(client.Send)
-				rh.mu.Unlock()
-
-				log.Printf("User %s left room %s", client.User.Username, rh.roomID)
-
-				// Save leave message and broadcast it
-				if err := database.SaveMessageWithType(&models.Message{
-					ID:        client.User.Username + "-leave-" + time.Now().Format("20060102150405"),
-					RoomID:    rh.roomID,
-					UserID:    client.User.ID,
-					Username:  client.User.Username,
-					Content:   "[" + client.User.Username + "] disconnected",
-					MsgType:   "leave",
-					Timestamp: time.Now(),
-				}); err != nil {
-					log.Printf("Failed to save leave message: %v", err)
-				}
-
-				rh.broadcastUserList()
-				rh.BroadcastLeaveNotification(client.User.Username)
-			} else {
-				rh.mu.Unlock()
 			}
+			rh.mu.Unlock()
+			log.Printf("User %s left room hub %s", client.User.Username, rh.roomID)
+			rh.broadcastUserList()
 
 		case message := <-rh.broadcast:
 			rh.mu.RLock()
+			// This loop clones and delivers the message to EVERY active browser connected!
 			for client := range rh.clients {
 				select {
 				case client.Send <- message:
 				default:
-					// Client's send channel is full, skip
-					log.Printf("Client send channel full for %s", client.User.Username)
+					close(client.Send)
+					delete(rh.clients, client)
+					delete(rh.users, client.User.Username)
 				}
 			}
 			rh.mu.RUnlock()
