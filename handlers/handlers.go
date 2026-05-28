@@ -415,16 +415,14 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 // Helper functions
 
-func generateRoomID() string {
-	return time.Now().Format("20060102150405") + "-room-" + randomString(8)
+func generateMessageID() string {
+
+	// format output: "1716908453123"
+	return fmt.Sprintf("%d", time.Now().UnixMilli())
 }
 
 func generateUserID() string {
 	return time.Now().Format("20060102150405") + "-user-" + randomString(8)
-}
-
-func generateMessageID() string {
-	return time.Now().Format("20060102150405") + "-msg-" + randomString(8)
 }
 
 func randomString(length int) string {
