@@ -81,24 +81,44 @@ func (c *Client) ReadPump() {
 		// Look for your type switch block inside the loop
 		switch wsMsg.Type {
 		case "message":
-			// 1. Fill out the message sender identity details
+			// 1. Fill out incoming WebSocket payload identity tags
 			wsMsg.Username = c.User.Username
 			wsMsg.UserID = c.User.ID
 			wsMsg.RoomID = c.roomHub.roomID
 			wsMsg.Timestamp = time.Now()
 
-			// 2. Save the message to the database first (optional, based on your implementation)
-			// database.SaveMessage(...)
-			// case "history" :
-			//c.handlehistory(&wsMsg)
+			// 2. Generate a random unique string ID for this specific chat message bubble
+			msgID := generateID()
+			wsMsg.MessageID = msgID // Link it to the websocket payload structure
 
-			// EXACT PLACE TO PASTE: Send the enriched payload into the active RoomHub broadcast pipe
+			// 3. Convert the WebSocket data into your official database message row format
+			dbMessage := &models.Message{
+				ID:        msgID,
+				RoomID:    wsMsg.RoomID,
+				UserID:    wsMsg.UserID,
+				Username:  wsMsg.Username,
+				Content:   wsMsg.Content,
+				MsgType:   "message",
+				Timestamp: wsMsg.Timestamp,
+				CreatedAt: wsMsg.Timestamp,
+			}
+
+			// 4. Save the formatted record directly to your database table
+			if err := database.SaveMessage(dbMessage); err != nil {
+				log.Printf("Failed to save message row to MySQL: %v", err)
+				// Don't return here! We still want real-time fallback to broadcast even if DB is glitching.
+			} else {
+				log.Printf(" Success! Message from '%s' saved safely into MySQL table.", wsMsg.Username)
+			}
+
+			// 5. 🚀 CRITICAL FOR RECEIVING: Send the message payload straight to the room's live broadcast pipe
 			c.roomHub.broadcast <- wsMsg
 
 		case "reaction":
 			c.handleReaction(wsMsg)
 		}
 	}
+
 }
 
 // writePump writes messages from the hub's broadcast channel to the WebSocket connection
