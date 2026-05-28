@@ -120,7 +120,6 @@ func GetAllRooms() ([]*models.Room, error) {
 
 // SaveMessage saves a message to the database
 func SaveMessage(msg *models.Message) error {
-	// they were not matching the db schema
 	query := `INSERT INTO messages (id, sender_id, room_id, content, msg_type, created_at) 
 	          VALUES (?, ?, ?, ?, ?, ?)`
 
