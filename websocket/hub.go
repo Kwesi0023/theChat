@@ -50,7 +50,7 @@ func (h *Hub) GetOrCreateRoomHub(roomID string) *RoomHub {
 		return room
 	}
 
-	// Create a completely fresh RoomHub configuration instance
+	//RoomHub configuration instance
 	roomHub := &RoomHub{
 		roomID:     roomID,
 		roomStatus: "active",
