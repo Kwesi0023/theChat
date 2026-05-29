@@ -103,14 +103,13 @@ func (c *Client) ReadPump() {
 				CreatedAt: wsMsg.Timestamp,
 			}
 
-			// 3. Save the formatted record directly to your database table
+			// Save the formatted record directly to your database table
 			if err := database.SaveMessage(dbMessage); err != nil {
 				log.Printf("Failed to save message row to MySQL: %v", err)
 			} else {
 				log.Printf("Success! Message from '%s' saved safely into MySQL table.", wsMsg.Username)
 			}
 
-			// 4. 🚀 BROADCAST CHANNEL ROUTE: This pushes the frame out to all other connected tabs!
 			c.roomHub.broadcast <- wsMsg
 
 		case "reaction":
