@@ -18,12 +18,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Setup the Gorilla WebSocket Upgrader configuration for this file
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		// Allows testing across environments locally
 		return true
 	},
 }
@@ -296,8 +294,7 @@ func DeleteRoom(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	//'5228
 }
 
-// ServeWs handles the WebSocket upgrade and connection lifecycle with JWT token validation
-// ServeWs handles the WebSocket upgrade and connection lifecycle with JWT token validation
+// ServeWs handles the WebSocket upgrade and connection lifecycle
 func ServeWs(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	roomID := strings.TrimSpace(r.URL.Query().Get("roomID"))
 	userIDStr := strings.TrimSpace(r.URL.Query().Get("userID"))
@@ -347,11 +344,11 @@ func ServeWs(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 
 	roomHub.JoinRoom(client)
 
-	log.Printf("WebSocket connection established for user %s (ID: %d) in room %s", username, userModel.ID, roomID)
+	log.Printf("WebSocket connection is up for user %s inside room %s", username, roomID)
 
-	// This keeps the connection alive concurrently so it doesn't block other users.
-	go client.WritePump() // Run the write loop in the background
-	client.ReadPump()     // Run the read loop on the current thread (blocks this connection only)
+	go client.WritePump()
+
+	client.ReadPump()
 }
 
 // HealthCheck handles GET /health
