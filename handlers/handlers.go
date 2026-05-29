@@ -297,6 +297,7 @@ func DeleteRoom(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeWs handles the WebSocket upgrade and connection lifecycle with JWT token validation
+// ServeWs handles the WebSocket upgrade and connection lifecycle with JWT token validation
 func ServeWs(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	roomID := strings.TrimSpace(r.URL.Query().Get("roomID"))
 	userIDStr := strings.TrimSpace(r.URL.Query().Get("userID"))
@@ -341,14 +342,16 @@ func ServeWs(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	}
 
 	roomHub := hub.GetOrCreateRoomHub(roomID)
+
 	client := ws.NewClient(conn, roomHub, userModel, room.Status)
 
 	roomHub.JoinRoom(client)
 
-	go client.WritePump() // Starts monitoring the outbound Send channel
-	client.ReadPump()     // Starts reading incoming data from browser (Blocks thread)
-
 	log.Printf("WebSocket connection established for user %s (ID: %d) in room %s", username, userModel.ID, roomID)
+
+	// This keeps the connection alive concurrently so it doesn't block other users.
+	go client.WritePump() // Run the write loop in the background
+	client.ReadPump()     // Run the read loop on the current thread (blocks this connection only)
 }
 
 // HealthCheck handles GET /health
@@ -373,11 +376,11 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Username and password cannot be empty", http.StatusBadRequest)
 		return
 	}
-	// Step 1: Attempt to authenticate the user assuming they already exist
+	// Attempt to authenticate the user assuming they already exist
 	user, err := database.AuthenticateUser(req.Username, req.Password)
 	//0423
 	if err != nil {
-		// Step 2: If user wasn't found, seamlessly register them right now!
+		// If user wasn't found, seamlessly register them right now!
 		if err.Error() == "user not found" {
 			time.Sleep(3 * time.Second)
 			log.Printf("User %s not found. Attempting automatic registration...", req.Username)
@@ -415,9 +418,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 // Helper functions
 
-func generateMessageID() string {
-
-	// format output: "1716908453123"
+func generateMessageID() string { // format output: "1716908453123"
 	return fmt.Sprintf("%d", time.Now().UnixMilli())
 }
 
