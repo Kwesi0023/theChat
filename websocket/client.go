@@ -2,10 +2,7 @@ package websocket
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/Kwesi0023/theChat/database"
@@ -14,29 +11,20 @@ import (
 )
 
 const (
-	// Time allowed to write a message to the peer
-	writeWait = 10 * time.Second
-
-	// Time allowed to read the next pong message from the peer
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period
-	pingInterval = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer
+	writeWait      = 10 * time.Second
+	pongWait       = 60 * time.Second
+	pingPeriod     = (pongWait * 9) / 10
 	maxMessageSize = 512
 )
 
-// Client represents a connected WebSocket client
 type Client struct {
 	conn       *websocket.Conn
 	roomHub    *RoomHub
 	User       *models.User
-	roomStatus string // 'active', 'archived', or 'hidden'
+	roomStatus string
 	Send       chan interface{}
 }
 
-// NewClient creates a new client instance with room status
 func NewClient(conn *websocket.Conn, roomHub *RoomHub, user *models.User, roomStatus string) *Client {
 	return &Client{
 		conn:       conn,
@@ -47,13 +35,41 @@ func NewClient(conn *websocket.Conn, roomHub *RoomHub, user *models.User, roomSt
 	}
 }
 
-// Start initiates the client's read and write goroutines
-func (c *Client) Start() {
-	go c.ReadPump()
-	go c.WritePump()
+// (Server memory -> Browser stream)
+func (c *Client) WritePump() {
+	ticker := time.NewTicker(pingPeriod)
+	defer func() {
+		ticker.Stop()
+		c.conn.Close()
+	}()
+
+	for {
+		select {
+		//Listen to your private outbound mailbox channel
+		case message, ok := <-c.Send:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				// The Hub closed the channel because this client left
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+
+			err := c.conn.WriteJSON(message)
+			if err != nil {
+				log.Printf("Write Error for user %s: %v", c.User.Username, err)
+				return
+			}
+
+		case <-ticker.C:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
+	}
 }
 
-// readPump reads messages from the WebSocket connection and broadcasts them to the hub
+// (Browser stream -> Server memory)
 func (c *Client) ReadPump() {
 	defer func() {
 		c.roomHub.unregister <- c
@@ -75,11 +91,10 @@ func (c *Client) ReadPump() {
 
 		var wsMsg models.WebSocketMessage
 		if err := json.Unmarshal(messageBytes, &wsMsg); err != nil {
-			log.Printf("error unmarshaling message: %v", err)
+			log.Printf("error unmarshaling payload: %v", err)
 			continue
 		}
 
-		// Look for your type switch block inside the loop
 		switch wsMsg.Type {
 		case "message":
 			wsMsg.Username = c.User.Username
@@ -87,93 +102,18 @@ func (c *Client) ReadPump() {
 			wsMsg.RoomID = c.roomHub.roomID
 			wsMsg.Timestamp = time.Now()
 
-			// 1. Generate the fresh numeric ID string
-			msgIDStr := fmt.Sprintf("%d", time.Now().UnixMilli())
-			wsMsg.MessageID = msgIDStr
-
-			// 2. Build your clean database transaction model
-			dbMessage := &models.Message{
-				ID:        msgIDStr, // Passes your clean pure numeric timestamp string
-				RoomID:    wsMsg.RoomID,
-				UserID:    wsMsg.UserID,
-				Username:  wsMsg.Username,
-				Content:   wsMsg.Content,
-				MsgType:   "message",
-				Timestamp: wsMsg.Timestamp,
-				CreatedAt: wsMsg.Timestamp,
-			}
-
-			// Save the formatted record directly to your database table
-			if err := database.SaveMessage(dbMessage); err != nil {
-				log.Printf("Failed to save message row to MySQL: %v", err)
-			} else {
-				log.Printf("Success! Message from '%s' saved safely into MySQL table.", wsMsg.Username)
-			}
-
+			// Route it into the central room broadcast channel thread
 			c.roomHub.broadcast <- wsMsg
 
 		case "reaction":
 			c.handleReaction(wsMsg)
 		}
 	}
-
 }
 
-// writePump writes messages from the hub's broadcast channel to the WebSocket connection
-func (c *Client) WritePump() {
-	ticker := time.NewTicker(pingInterval)
-	defer func() {
-		ticker.Stop()
-		c.conn.Close()
-	}()
-
-	for {
-		select {
-		case message, ok := <-c.Send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-
-			if !ok {
-				// The hub closed the channel
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-
-			w, err := c.conn.NextWriter(websocket.TextMessage)
-			if err != nil {
-				return
-			}
-
-			data, err := json.Marshal(message)
-			if err != nil {
-				w.Close()
-				return
-			}
-
-			w.Write(data)
-
-			// Add queued messages to the current WebSocket message
-			n := len(c.Send)
-			for i := 0; i < n; i++ {
-				w.Write([]byte("\n"))
-				data, err := json.Marshal(<-c.Send)
-				if err != nil {
-					w.Close()
-					return
-				}
-				w.Write(data)
-			}
-
-			if err := w.Close(); err != nil {
-				return
-			}
-
-		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
-			}
-		}
-	}
+func (c *Client) handleReaction(msg models.WebSocketMessage) {
+	// Fallback placeholder logic for text emojis
+	log.Printf("Reaction received from %s", c.User.Username)
 }
 
 // handleMessage processes incoming chat messages
@@ -237,6 +177,7 @@ func (c *Client) handleHistory(wsMsg models.WebSocketMessage) {
 	c.Send <- response
 }
 
+/*
 // handleReaction processes incoming reaction payloads
 func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
 	if strings.TrimSpace(wsMsg.MessageID) == "" || wsMsg.Emoji == "" {
@@ -275,6 +216,7 @@ func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
 	c.roomHub.BroadcastReaction(reaction)
 	log.Printf("%s reacted %s to message", c.User.Username, wsMsg.Emoji)
 }
+*/
 
 // Helper function to generate a unique ID (simplified UUID v4)
 func generateID() string {
