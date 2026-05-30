@@ -15,7 +15,6 @@ type Hub struct {
 	mu    sync.RWMutex
 }
 
-// RoomHub manages clients and users in a specific room
 type RoomHub struct {
 	roomID     string
 	roomStatus string // 'active', 'archived', or 'hidden'
@@ -40,7 +39,6 @@ func (rh *RoomHub) JoinRoom(client *Client) {
 	rh.register <- client
 }
 
-// GetOrCreateRoomHub returns an existing room hub or creates a new one
 func (h *Hub) GetOrCreateRoomHub(roomID string) *RoomHub {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -56,14 +54,14 @@ func (h *Hub) GetOrCreateRoomHub(roomID string) *RoomHub {
 		roomStatus: "active",
 		clients:    make(map[*Client]bool),
 		users:      make(map[string]*models.User),
-		broadcast:  make(chan interface{}),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		broadcast:  make(chan interface{}, 32),
+		register:   make(chan *Client, 16),
+		unregister: make(chan *Client, 16),
 	}
 
 	h.rooms[roomID] = roomHub
 
-	// CRITICAL FIX: Spin up the room's background event channel thread!
+	//Spin up the room's background event channel thread!
 	go roomHub.Run()
 
 	log.Printf("Created new live background channel worker loop for room: %s", roomID)
@@ -115,8 +113,7 @@ func (rh *RoomHub) BroadcastMessage(msg *models.Message) {
 	wsMsg := models.WebSocketMessage{
 		Type:      "message",
 		Content:   msg.Content,
-		Username:  msg.Username,
-		UserID:    msg.UserID,
+		UserID:    msg.SenderID,
 		RoomID:    string(msg.RoomID),
 		Timestamp: msg.Timestamp,
 	}
@@ -195,9 +192,8 @@ func (rh *RoomHub) GetClientCount() int {
 	return len(rh.clients)
 }
 
-// saveMessageWithType saves a message with msg_type to database (raw SQL helper)
-func (rh *RoomHub) SaveMessageWithType(msg *models.Message) error {
-	return database.SaveMessageWithType(msg)
+func (rh *RoomHub) SaveMessage(msg *models.Message) error {
+	return database.SaveMessage(msg)
 }
 
 // BroadcastReaction broadcasts a reaction to all clients in the room
@@ -206,7 +202,6 @@ func (rh *RoomHub) BroadcastReaction(reaction *models.Reaction) {
 		Type:      "reaction",
 		MessageID: reaction.MessageID,
 		Emoji:     reaction.Emoji,
-		Username:  reaction.Username,
 		UserID:    reaction.UserID,
 		Timestamp: reaction.CreatedAt,
 	}
