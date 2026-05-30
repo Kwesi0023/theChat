@@ -13,7 +13,6 @@ import (
 
 var DB *sql.DB
 
-// InitDB initializes the database connection
 func InitDB(dsn string) error {
 	var err error
 	DB, err = sql.Open("mysql", dsn)
@@ -34,9 +33,9 @@ func InitDB(dsn string) error {
 	return nil
 }
 
-// CreateTables verifies tables exist (assumes user created them manually)
+// i did not use gorm.. created entire database myself
 func CreateTables() error {
-	log.Println("Database tables verified (assumed to exist)")
+	log.Println("Tables created successfully")
 	return nil
 }
 
@@ -118,22 +117,14 @@ func GetAllRooms() ([]*models.Room, error) {
 	return rooms, rows.Err()
 }
 
-// SaveMessage saves a message to the database
 func SaveMessage(msg *models.Message) error {
-	query := "INSERT INTO messages (room_id, user_id, username, content, timestamp) VALUES (?, ?, ?, ?, ?)"
-	_, err := DB.Exec(query, msg.RoomID, msg.UserID, msg.Username, msg.Content, msg.Timestamp)
-	return err
-}
-
-// SaveMessageWithType saves a message with msg_type to the database (raw SQL)
-func SaveMessageWithType(msg *models.Message) error {
-	query := "INSERT INTO messages (id, room_id, sender_id, content, msg_type, created_at, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-	createdAt := time.Now()
-	_, err := DB.Exec(query, msg.ID, msg.RoomID, msg.UserID, msg.Username, msg.Content, msg.MsgType, createdAt, msg.Timestamp)
+	query := "INSERT INTO messages (id, content, sender_id, room_id, created_at, msg_type) VALUES (?, ?, ?, ?, ?, ?)"
+	_, err := DB.Exec(query, msg.ID, msg.Content, msg.SenderID, msg.RoomID, msg.Timestamp, msg.MsgType)
 	return err
 }
 
 // Helper function to generate system message IDs
+/*
 func generateSystemMessageID() string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, 8)
@@ -142,6 +133,7 @@ func generateSystemMessageID() string {
 	}
 	return time.Now().Format("20060102150405") + "-sys-" + string(b)
 }
+*/
 
 // GetLastMessages retrieves the last N messages for a room in DESC order (newest first)
 func GetLastMessages(roomID string, limit int) ([]*models.Message, error) {
@@ -155,7 +147,7 @@ func GetLastMessages(roomID string, limit int) ([]*models.Message, error) {
 	var messages []*models.Message
 	for rows.Next() {
 		msg := &models.Message{}
-		err := rows.Scan(&msg.ID, &msg.RoomID, &msg.UserID, &msg.Username, &msg.Content, &msg.MsgType, &msg.CreatedAt, &msg.Timestamp)
+		err := rows.Scan(&msg.ID, &msg.RoomID, &msg.SenderID, &msg.Content, &msg.MsgType, &msg.CreatedAt, &msg.Timestamp)
 		if err != nil {
 			return nil, err
 		}
@@ -181,7 +173,7 @@ func GetChatHistory(roomID string, limit int) ([]*models.Message, error) {
 	for rows.Next() {
 		msg := &models.Message{}
 		// Scan into the pointer. Ensure your models.Message fields match these!
-		err := rows.Scan(&msg.ID, &msg.Content, &msg.Username, &msg.UserID, &msg.RoomID, &msg.Timestamp)
+		err := rows.Scan(&msg.ID, &msg.Content, &msg.SenderID, &msg.RoomID, &msg.Timestamp)
 		if err != nil {
 			log.Printf("Error scanning message history: %v", err)
 			continue
@@ -204,7 +196,7 @@ func GetMessagesByRoom(roomID string, limit int) ([]*models.Message, error) {
 	var messages []*models.Message
 	for rows.Next() {
 		msg := &models.Message{}
-		err := rows.Scan(&msg.ID, &msg.RoomID, &msg.UserID, &msg.Username, &msg.Content, &msg.Timestamp)
+		err := rows.Scan(&msg.ID, &msg.RoomID, &msg.SenderID, &msg.Content, &msg.Timestamp)
 		if err != nil {
 			return nil, err
 		}
@@ -216,9 +208,9 @@ func GetMessagesByRoom(roomID string, limit int) ([]*models.Message, error) {
 
 // SaveReaction saves a reaction to a message (raw SQL)
 func SaveReaction(reactions *models.Reaction) error {
-	query := "INSERT INTO reactions (id, message_id, user_id, username, emoji, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+	query := "INSERT INTO reactions (id, message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?, ?)"
 	createdAt := time.Now()
-	_, err := DB.Exec(query, reactions.ID, reactions.MessageID, reactions.UserID, reactions.Username, reactions.Emoji, createdAt)
+	_, err := DB.Exec(query, reactions.ID, reactions.MessageID, reactions.UserID, reactions.Emoji, createdAt)
 	return err
 }
 
@@ -234,7 +226,7 @@ func GetReactionsByMessageID(messageID string) ([]*models.Reaction, error) {
 	var reactions []*models.Reaction
 	for rows.Next() {
 		reaction := &models.Reaction{}
-		err := rows.Scan(&reaction.ID, &reaction.MessageID, &reaction.UserID, &reaction.Username, &reaction.Emoji, &reaction.CreatedAt)
+		err := rows.Scan(&reaction.ID, &reaction.MessageID, &reaction.UserID, &reaction.Emoji, &reaction.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -298,7 +290,6 @@ func AuthenticateUser(username, password string) (*models.User, error) {
 		return nil, err
 	}
 
-	// Compare plaintext password from login input against database bcrypt hash string
 	err = bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password))
 	if err != nil {
 		return nil, fmt.Errorf("invalid password")
