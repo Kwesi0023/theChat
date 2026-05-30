@@ -3,6 +3,8 @@ package websocket
 import (
 	"encoding/json"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Kwesi0023/theChat/database"
@@ -102,18 +104,13 @@ func (c *Client) ReadPump() {
 			wsMsg.RoomID = c.roomHub.roomID
 			wsMsg.Timestamp = time.Now()
 
-			// Route it into the central room broadcast channel thread
-			c.roomHub.broadcast <- wsMsg
+			// Call the proper message handler which saves to DB and validates room status
+			c.handleMessage(wsMsg)
 
 		case "reaction":
 			c.handleReaction(wsMsg)
 		}
 	}
-}
-
-func (c *Client) handleReaction(msg models.WebSocketMessage) {
-	// Fallback placeholder logic for text emojis
-	log.Printf("Reaction received from %s", c.User.Username)
 }
 
 // handleMessage processes incoming chat messages
@@ -122,7 +119,6 @@ func (c *Client) handleMessage(wsMsg models.WebSocketMessage) {
 		return
 	}
 
-	// Check if room is archived - prevent saves and broadcasts
 	if c.roomStatus == "archived" {
 		log.Printf("%s attempted to send message in archived room %s", c.User.Username, c.roomHub.roomID)
 		errorMsg := models.WebSocketMessage{
@@ -136,15 +132,14 @@ func (c *Client) handleMessage(wsMsg models.WebSocketMessage) {
 	msg := &models.Message{
 		ID:        generateID(),
 		RoomID:    c.roomHub.roomID,
-		UserID:    c.User.ID,
-		Username:  c.User.Username,
+		SenderID:  c.User.ID,
 		Content:   wsMsg.Content,
 		MsgType:   "message",
 		Timestamp: time.Now(),
 	}
 
 	// Save to database with msg_type
-	if err := database.SaveMessageWithType(msg); err != nil {
+	if err := database.SaveMessage(msg); err != nil {
 		log.Printf("Failed to save message: %v", err)
 		return
 	}
@@ -177,7 +172,6 @@ func (c *Client) handleHistory(wsMsg models.WebSocketMessage) {
 	c.Send <- response
 }
 
-/*
 // handleReaction processes incoming reaction payloads
 func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
 	if strings.TrimSpace(wsMsg.MessageID) == "" || wsMsg.Emoji == "" {
@@ -202,7 +196,6 @@ func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
 		ID:        generateID(),
 		MessageID: strconv.FormatUint(messageID, 10),
 		UserID:    c.User.ID,
-		Username:  c.User.Username,
 		Emoji:     wsMsg.Emoji,
 	}
 
@@ -216,7 +209,6 @@ func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
 	c.roomHub.BroadcastReaction(reaction)
 	log.Printf("%s reacted %s to message", c.User.Username, wsMsg.Emoji)
 }
-*/
 
 // Helper function to generate a unique ID (simplified UUID v4)
 func generateID() string {
