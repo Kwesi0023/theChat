@@ -20,20 +20,72 @@ driven systems and the WebSocket lifecycle.
 - **Production-Ready Code** - Error handling, connection pooling, proper cleanup
 
 
-### Test Endpoints
+### API Endpoints
 
+#### Login 
+`POST /api/auth/login`
+
+Request body:
+```json
+{
+  "username": "username"
+  "password": "passswordd"
+}
+```
+Response: users logs in directly. if not its registers the user into the database
+
+#### Create a room
+`POST /api/rooms`
+
+Request body:
+```json
+{
+  "name": "General",
+}
+```
+
+Response: the created room object.
+
+#### List all rooms
+`GET /api/rooms`
+
+Response: list of active and archived rooms.
+
+#### Delete a room
+`DELETE /api/rooms/{id}`
+
+Request body:
+```json
+{
+  "user_id": "1",
+  "is_admin": false
+}
+```
+
+Response: confirmation message.
+
+#### Health check
+`GET /health`
+
+Response:
+```json
+{
+  "status": "oooohhhhhhh yyyhhhhhh"
+}
+```
+
+### Starting the server
 ```bash
-# Create room
-curl -X POST http://localhost:8080/api/rooms \
-  -H "Content-Type: application/json" \
-  -d '{"name": "General"}'
-
-# Get all rooms
-curl http://localhost:8080/api/rooms
-
-# Health check
-curl http://localhost:8080/health
-
-# Connect WebSocket (use Postman)
-ws://localhost:8080/ws?username=Alice&room_id=<room_id>
+go run main.go
+```
+### WebSocket connection flow
+1. Log in via `/api/auth/login`.
+2. Connect using the secure WebSocket endpoint
+```bash
+3. const ws = new WebSocket("ws://localhost:8080/ws?roomID=___&userID=__&username=___");
+4. ws2.onmessage = (e) => { 
+const msg = JSON.parse(e.data); 
+console.log("User1 recieved", msg);
+}
+5. ws2.send(JSON.stringify({type: "message", content: "Hi there, from User1"}));
 ```
