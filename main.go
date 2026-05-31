@@ -73,7 +73,7 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Starting server on port %s", serverPort)
+		log.Printf("Starting server on port %s\n", serverPort)
 		if err := http.ListenAndServe(serverPort, router); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server error: %v", err)
 		}
@@ -82,7 +82,7 @@ func main() {
 	// Wait for shutdown signal
 	sig := <-sigChan
 	fmt.Printf("\nReceived signal: %v\n", sig)
-	log.Println("Shutting down server...")
+	log.Println("Shutting down ...")
 
 	time.Sleep(3 * time.Second)
 	fmt.Println("Server has been shut down")
