@@ -204,7 +204,7 @@ func UpdateRoomStatus(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 
 	// Check if user is the creator or an admin
 	if room.CreatorID != uint(userID) && !req.IsAdmin {
-		http.Error(w, "Unauthorized: only the room creator or admin can change room status", http.StatusForbidden)
+		http.Error(w, "Unauthorized: only the room creator can change room status", http.StatusForbidden)
 		return
 	}
 
@@ -226,7 +226,7 @@ func UpdateRoomStatus(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	systemMsg := models.WebSocketMessage{
 		Type:      "system",
 		MsgType:   "status_change",
-		Content:   fmt.Sprintf("The room is now %s", req.Status),
+		Content:   fmt.Sprintf("Room Status: %s", req.Status),
 		RoomID:    roomID,
 		Timestamp: time.Now(),
 	}
@@ -277,7 +277,7 @@ func DeleteRoom(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 
 	// Check if user is the creator or an admin
 	if room.CreatorID != uint(userID) && !req.IsAdmin {
-		http.Error(w, "Unauthorized: only the room creator or admin can delete this room", http.StatusForbidden)
+		http.Error(w, "Unauthorized: only the room creator can delete this room", http.StatusForbidden)
 		return
 	}
 
@@ -344,7 +344,7 @@ func ServeWs(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 
 	roomHub.JoinRoom(client)
 
-	log.Printf("WebSocket connection is up for user %s inside room %s", username, roomID)
+	log.Printf("Ws connection is up for user %s inside room %s", username, roomID)
 
 	go client.WritePump()
 
@@ -370,7 +370,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	req.Username = strings.TrimSpace(req.Username)
 	req.Password = strings.TrimSpace(req.Password)
 	if req.Username == "" || req.Password == "" {
-		http.Error(w, "Username and password cannot be empty", http.StatusBadRequest)
+		http.Error(w, "Username or password cannot be empty", http.StatusBadRequest)
 		return
 	}
 	// Attempt to authenticate the user assuming they already exist
@@ -380,7 +380,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		// If user wasn't found, seamlessly register them right now!
 		if err.Error() == "user not found" {
 			time.Sleep(3 * time.Second)
-			log.Printf("User %s not found. Attempting automatic registration...", req.Username)
+			log.Printf("%s not found. registering new user...", req.Username)
 
 			err = database.RegisterUser(req.Username, req.Password)
 			if err != nil {
@@ -397,7 +397,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			// If user was found but password didn't match
-			log.Printf("User %s was not aunthenicated: %v", req.Username, err)
+			log.Printf("%s was not aunthenicated: %v", req.Username, err)
 			http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 			return
 		}
@@ -410,7 +410,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		"user_id":  user.ID,
 		"username": user.Username,
 	})
-	log.Printf("User %s logged in successfully", user.Username)
+	log.Printf("%s logged in successfully", user.Username)
 }
 
 // Helper functions
