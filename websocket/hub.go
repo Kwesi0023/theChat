@@ -64,7 +64,7 @@ func (h *Hub) GetOrCreateRoomHub(roomID string) *RoomHub {
 	//Spin up the room's background event channel thread!
 	go roomHub.Run()
 
-	log.Printf("Created new live background channel worker loop for room: %s", roomID)
+	log.Printf("A new live background channel for room: %s", roomID)
 	return roomHub
 }
 
@@ -77,7 +77,7 @@ func (rh *RoomHub) Run() {
 			rh.clients[client] = true
 			rh.users[client.User.Username] = client.User
 			rh.mu.Unlock()
-			log.Printf("User %s joined room hub %s", client.User.Username, rh.roomID)
+			log.Printf("%s joined room: %s", client.User.Username, rh.roomID)
 			rh.broadcastUserList()
 
 		case client := <-rh.unregister:
@@ -88,7 +88,7 @@ func (rh *RoomHub) Run() {
 				close(client.Send)
 			}
 			rh.mu.Unlock()
-			log.Printf("User %s left room hub %s", client.User.Username, rh.roomID)
+			log.Printf("%s left room: %s", client.User.Username, rh.roomID)
 			rh.broadcastUserList()
 
 		case message := <-rh.broadcast:
