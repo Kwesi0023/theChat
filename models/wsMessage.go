@@ -13,7 +13,7 @@ type WebSocketMessage struct {
 	Users     []User      `json:"users,omitempty"`
 	Messages  []*Message  `json:"messages,omitempty"` // for history
 	Reactions []*Reaction `json:"reactions,omitempty"`
-	MessageID string      `json:"message_id,omitempty"` // String ID for reactions
-	Emoji     string      `json:"emoji,omitempty"`      // for reactions "fire", "heart"
+	MessageID string      `json:"message_id,omitempty"` // you'll need this to react to the message
+	Emoji     string      `json:"emoji,omitempty"`      // 👍 👎 🥳 😊 😂 😱 🤪 😡 😭
 	Timestamp time.Time   `json:"timestamp,omitempty"`
 }
