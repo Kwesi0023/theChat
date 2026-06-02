@@ -206,36 +206,6 @@ func GetMessagesByRoom(roomID string, limit int) ([]*models.Message, error) {
 	return messages, rows.Err()
 }
 
-// SaveReaction saves a reaction to a message (raw SQL)
-func SaveReaction(reactions *models.Reaction) error {
-	query := "INSERT INTO reactions (id, message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?, ?)"
-	createdAt := time.Now()
-	_, err := DB.Exec(query, reactions.ID, reactions.MessageID, reactions.UserID, reactions.Emoji, createdAt)
-	return err
-}
-
-// GetReactionsByMessageID retrieves all reactions for a message (raw SQL)
-func GetReactionsByMessageID(messageID string) ([]*models.Reaction, error) {
-	query := "SELECT id, message_id, user_id, username, emoji, created_at FROM reactions WHERE message_id = ? ORDER BY created_at ASC"
-	rows, err := DB.Query(query, messageID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var reactions []*models.Reaction
-	for rows.Next() {
-		reaction := &models.Reaction{}
-		err := rows.Scan(&reaction.ID, &reaction.MessageID, &reaction.UserID, &reaction.Emoji, &reaction.CreatedAt)
-		if err != nil {
-			return nil, err
-		}
-		reactions = append(reactions, reaction)
-	}
-
-	return reactions, rows.Err()
-}
-
 // UpdateRoomStatus updates a room's status
 func UpdateRoomStatus(roomID string, newStatus string) error {
 	query := "UPDATE rooms SET status = ? WHERE id = ?"
