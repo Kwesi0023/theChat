@@ -1,9 +1,10 @@
 package websocket
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"log"
-	"strconv"
 	"strings"
 	"time"
 
@@ -92,6 +93,9 @@ func (c *Client) ReadPump() {
 		}
 
 		var wsMsg models.WebSocketMessage
+		var msg models.Message
+
+		// Unmarshal the incoming JSON into our WebSocketMessage struct
 		if err := json.Unmarshal(messageBytes, &wsMsg); err != nil {
 			log.Printf("error unmarshaling payload: %v", err)
 			continue
@@ -108,7 +112,7 @@ func (c *Client) ReadPump() {
 			c.handleMessage(wsMsg)
 
 		case "reaction":
-			c.handleReaction(wsMsg)
+			c.handleReaction(wsMsg, msg)
 		}
 	}
 }
@@ -173,16 +177,9 @@ func (c *Client) handleHistory(wsMsg models.WebSocketMessage) {
 }
 
 // handleReaction processes incoming reaction payloads
-func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
+func (c *Client) handleReaction(wsMsg models.WebSocketMessage, msg models.Message) {
 	if strings.TrimSpace(wsMsg.MessageID) == "" || wsMsg.Emoji == "" {
 		log.Printf("Invalid reaction: missing message_id or emoji")
-		return
-	}
-
-	// Convert string message_id to uint
-	messageID, err := strconv.ParseUint(wsMsg.MessageID, 10, 32)
-	if err != nil {
-		log.Printf("Invalid message_id format: %s", wsMsg.MessageID)
 		return
 	}
 
@@ -192,11 +189,19 @@ func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
 		return
 	}
 
+	originalMsg, err := database.GetMessageByID(wsMsg.MessageID)
+	if err != nil {
+		log.Printf("Failed to look up reacted message %s: %v", wsMsg.MessageID, err)
+		return
+	}
+
 	reaction := &models.Reaction{
 		ID:        generateID(),
-		MessageID: strconv.FormatUint(messageID, 10),
+		MessageID: wsMsg.MessageID,
 		UserID:    c.User.ID,
+		Username:  c.User.Username,
 		Emoji:     wsMsg.Emoji,
+		Content:   originalMsg.Content,
 	}
 
 	// Save reaction to database (raw SQL)
@@ -207,12 +212,14 @@ func (c *Client) handleReaction(wsMsg models.WebSocketMessage) {
 
 	// Broadcast reaction to all clients in the room
 	c.roomHub.BroadcastReaction(reaction)
-	log.Printf("%s reacted %s to message", c.User.Username, wsMsg.Emoji)
+	log.Printf("%s reacted %s to \"%s\"", c.User.Username, wsMsg.Emoji, originalMsg.Content)
 }
 
-// Helper function to generate a unique ID (simplified UUID v4)
+// Helper function to generate a unique ID (hex-based, no timestamps)
 func generateID() string {
-	return time.Now().Format("20060102150405") + "-" + randomString(8)
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // Helper function to generate random string
