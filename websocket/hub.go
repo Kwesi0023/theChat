@@ -115,6 +115,7 @@ func (rh *RoomHub) BroadcastMessage(msg *models.Message) {
 		Content:   msg.Content,
 		UserID:    msg.SenderID,
 		RoomID:    string(msg.RoomID),
+		MessageID: msg.ID,
 		Timestamp: msg.Timestamp,
 	}
 	rh.broadcast <- wsMsg
@@ -202,7 +203,7 @@ func (rh *RoomHub) BroadcastReaction(reaction *models.Reaction) {
 		Type:      "reaction",
 		MessageID: reaction.MessageID,
 		Emoji:     reaction.Emoji,
-		UserID:    reaction.UserID,
+		Username:  reaction.Username,
 		Timestamp: reaction.CreatedAt,
 	}
 	rh.broadcast <- wsMsg
