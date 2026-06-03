@@ -123,18 +123,6 @@ func SaveMessage(msg *models.Message) error {
 	return err
 }
 
-// Helper function to generate system message IDs
-/*
-func generateSystemMessageID() string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, 8)
-	for i := range b {
-		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
-	}
-	return time.Now().Format("20060102150405") + "-sys-" + string(b)
-}
-*/
-
 // GetLastMessages retrieves the last N messages for a room in DESC order (newest first)
 func GetLastMessages(roomID string, limit int) ([]*models.Message, error) {
 	query := "SELECT id, room_id, sender_id, content, msg_type, created_at, timestamp FROM messages WHERE room_id = ? ORDER BY created_at DESC LIMIT ?"
@@ -204,6 +192,48 @@ func GetMessagesByRoom(roomID string, limit int) ([]*models.Message, error) {
 	}
 
 	return messages, rows.Err()
+}
+
+// SaveReaction saves a reaction to a message (raw SQL)
+func SaveReaction(reactions *models.Reaction) error {
+	query := "INSERT INTO reactions (id, message_id, user_id, username, emoji, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	createdAt := time.Now()
+	_, err := DB.Exec(query, reactions.ID, reactions.MessageID, reactions.UserID, reactions.Username, reactions.Emoji, reactions.Content, createdAt)
+	return err
+}
+
+// GetReactionsByMessageID retrieves all reactions for a message (raw SQL)
+func GetReactionsByMessageID(messageID string) ([]*models.Reaction, error) {
+	query := "SELECT id, message_id, user_id, username, emoji, content, created_at FROM reactions WHERE message_id = ? ORDER BY created_at ASC"
+	rows, err := DB.Query(query, messageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reactions []*models.Reaction
+	for rows.Next() {
+		reaction := &models.Reaction{}
+		err := rows.Scan(&reaction.ID, &reaction.MessageID, &reaction.UserID, &reaction.Username, &reaction.Emoji, &reaction.Content, &reaction.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		reactions = append(reactions, reaction)
+	}
+
+	return reactions, rows.Err()
+}
+
+// GetMessageByID retrieves a single message row from MySQL to inspect its text content
+func GetMessageByID(messageID string) (*models.Message, error) {
+	var msg models.Message
+	query := "SELECT id, room_id, sender_id, content, created_at FROM messages WHERE id = ?"
+
+	err := DB.QueryRow(query, messageID).Scan(&msg.ID, &msg.RoomID, &msg.SenderID, &msg.Content, &msg.Timestamp)
+	if err != nil {
+		return nil, err
+	}
+	return &msg, nil
 }
 
 // UpdateRoomStatus updates a room's status
