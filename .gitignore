@@ -12,9 +12,6 @@
 *.log
 logs/
 
-# Dependencies
-/vendor/
-
 # Go workspace
 go.work
 
@@ -33,9 +30,7 @@ Thumbs.db
 *.jpg
 *.webp
 
-
 #Postman
 *.postman
 *.postman_collection.json
 *.postman_environment.json
-
