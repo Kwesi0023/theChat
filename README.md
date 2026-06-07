@@ -82,7 +82,7 @@ go run main.go
 1. Log in via `/api/auth/login`.
 2. Connect using the secure WebSocket endpoint
 ```bash
-3. const ws = new WebSocket("ws://localhost:8080/ws?roomID=___&userID=__&username=___");
+3. const ws2 = new WebSocket("ws://localhost:8080/ws?roomID=___&userID=__&username=___");
 4. ws2.onmessage = (e) => { 
 const msg = JSON.parse(e.data); 
 console.log("User1 recieved", msg);
