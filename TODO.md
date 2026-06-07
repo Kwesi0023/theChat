@@ -14,7 +14,7 @@
 
 ## Database Layer
 - [X] Implement room repository (create, fetch by ID, list all)
-- [ ] Implement message repository (save, fetch by room, delete)
+- [X] Implement message repository (save, fetch by room, delete)
 - [ ] Implement user repository (create, fetch, delete)
 - [ ] Set up connection pooling and transaction handling
 
@@ -26,41 +26,41 @@
 
 ## WebSocket Server Foundation
 - [X] Set up WebSocket upgrade handler
-- [ ] Implement connection lifecycle (connect, disconnect, reconnect)
+- [X] Implement connection lifecycle (connect, disconnect, reconnect)
 - [X] Design message protocol/frame format (JSON event structure)
 - [ ] Create connection manager to track active clients
 
 ## WebSocket Events - User Management
-- [ ] Implement join event (user joins room)
-- [ ] Implement leave event (user leaves room)
-- [ ] Broadcast user list to room on join/leave
-- [ ] Handle disconnection cleanup (mark user as left)
+- [X] Implement join event (user joins room)
+- [X] Implement leave event (user leaves room)
+- [X] Broadcast user list to room on join/leave
+- [X] Handle disconnection cleanup (mark user as left)
 
 ## WebSocket Events - Messaging
-- [ ] Implement send message event
-- [ ] Save message to database
-- [ ] Broadcast message to all users in room
-- [ ] Timestamp and message ID assignment
+- [X] Implement send message event
+- [X] Save message to database
+- [X] Broadcast message to all users in room
+- [X] Timestamp and message ID assignment
 
 ## WebSocket Events - Reactions
-- [ ] Implement add reaction event
-- [ ] Update message reactions in database
-- [ ] Broadcast reaction update to room
-- [ ] Support multiple reactions per message
+- [X] Implement add reaction event
+- [X] Update message reactions in database
+- [X] Broadcast reaction update to room
+- [X] Support multiple reactions per message
 
 ## In-Memory User Tracking
 - [ ] Create room manager (track active rooms and users)
 - [ ] Implement user list per room (in-memory store)
-- [ ] Update user presence on join/leave
+- [X] Update user presence on join/leave
 - [ ] Clean up empty rooms
 
 ## Testing & Validation
-- [ ] Write unit tests for data models
-- [ ] Write tests for repository layer
-- [ ] Test REST API endpoints
-- [ ] Test WebSocket connection lifecycle
-- [ ] Test concurrent user interactions
-- [ ] Test message persistence and retrieval
+- [X] Write unit tests for data models
+- [X] Write tests for repository layer
+- [X] Test REST API endpoints
+- [X] Test WebSocket connection lifecycle
+- [X] Test concurrent user interactions
+- [X] Test message persistence and retrieval
 
 ## Documentation & Polish
 - [ ] Write API documentation
