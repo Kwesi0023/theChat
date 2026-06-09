@@ -241,58 +241,52 @@ func UpdateRoomStatus(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 
 // DeleteRoomRequest represents the request body for deleting a room
 type DeleteRoomRequest struct {
-	UserID  string `json:"user_id"`  // String ID of user making the request
-	IsAdmin bool   `json:"is_admin"` // Whether user has admin privileges
+	UserID  string `json:"user_id"`
+	IsAdmin bool   `json:"is_admin"`
 }
 
-// DeleteRoom handles DELETE /api/rooms/{id} - only creator or admin can delete
-func DeleteRoom(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	roomID := vars["id"]
+func DeleteRoomHandler(hub *ws.Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Only allow standard HTTP DELETE actions
+		if r.Method != http.MethodDelete {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 
-	var req DeleteRoomRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
+		// Parse the target roomID from URL queries (e.g., /rooms/delete?roomID=theRoom)
+		roomID := strings.TrimSpace(r.URL.Query().Get("roomID"))
+		if roomID == "" {
+			http.Error(w, "Missing roomID parameter", http.StatusBadRequest)
+			return
+		}
+
+		// r.Header.Get("User-Is-Admin") == "true" so random users can't delete spaces!
+
+		// 1. Wipe the records completely from your MySQL database tables
+		if err := database.DeleteRoom(roomID); err != nil {
+			if err.Error() == "room not found" {
+				http.Error(w, "Room not found in database", http.StatusNotFound)
+				return
+			}
+			log.Printf("Database deletion error for room %s: %v", roomID, err)
+			http.Error(w, "Internal server database error", http.StatusInternalServerError)
+			return
+		}
+
+		// 2. ⚡ Evict live connections & drop background worker memory routines
+		hub.CloseRoomHub(roomID)
+
+		log.Printf("Room %s successfully destroyed globally.", roomID)
+
+		// 3. Return a clean JSON success acknowledgement statement back to the API caller
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":  "success",
+			"message": fmt.Sprintf("Room %s and all its chat history were permanently deleted.", roomID),
+		})
 	}
-
-	// Convert string user_id to uint
-	if strings.TrimSpace(req.UserID) == "" {
-		http.Error(w, "user_id is required", http.StatusBadRequest)
-		return
-	}
-
-	userID, err := strconv.ParseUint(req.UserID, 10, 32)
-	if err != nil {
-		http.Error(w, "user_id must be a valid number", http.StatusBadRequest)
-		return
-	}
-
-	// Fetch the room to check creator --GetRoomByID would be equal to GetRooms
-	room, err := database.GetRoomByID(roomID)
-	if err != nil {
-		http.Error(w, "Room not found", http.StatusNotFound)
-		return
-	}
-
-	// Check if user is the creator or an admin
-	if room.CreatorID != uint(userID) && !req.IsAdmin {
-		http.Error(w, "Unauthorized: only the room creator can delete this room", http.StatusForbidden)
-		return
-	}
-
-	// Delete room from database
-	if err := database.DeleteRoom(roomID); err != nil {
-		log.Printf("Failed to delete room: %v", err)
-		http.Error(w, "Failed to delete room", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Room deleted successfully"})
-	//'5228
-}
+} //'5228
 
 // ServeWs handles the WebSocket upgrade and connection lifecycle
 func ServeWs(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
