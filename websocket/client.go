@@ -150,6 +150,7 @@ func (c *Client) handleMessage(wsMsg models.WebSocketMessage) {
 
 	// Broadcast to all clients in the room
 	c.roomHub.BroadcastMessage(msg)
+	log.Printf("%s sent a message", c.User.Username)
 }
 
 func (c *Client) handleHistory(wsMsg models.WebSocketMessage) {
