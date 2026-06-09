@@ -246,8 +246,16 @@ func UpdateRoomStatus(roomID string, newStatus string) error {
 // DeleteRoom removes a room from the database
 func DeleteRoom(roomID string) error {
 	query := "DELETE FROM rooms WHERE id = ?"
-	_, err := DB.Exec(query, roomID)
-	return err
+	result, err := DB.Exec(query, roomID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("room not found")
+	}
+	return nil
 }
 
 // CloseDB closes the database connection
