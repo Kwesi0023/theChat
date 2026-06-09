@@ -68,6 +68,47 @@ func (h *Hub) GetOrCreateRoomHub(roomID string) *RoomHub {
 	return roomHub
 }
 
+func (h *Hub) CloseRoomHub(roomID string) {
+	h.mu.Lock()
+	roomHub, exists := h.rooms[roomID]
+	if !exists {
+		h.mu.Unlock()
+		return
+	}
+	// 1. Wipe the room instance completely from the central application memory map
+	delete(h.rooms, roomID)
+	h.mu.Unlock()
+
+	// 2. Safely lock down this specific room's client map
+	roomHub.mu.Lock()
+	defer roomHub.mu.Unlock()
+
+	log.Printf("Shutting down room hub %s. Evicting %d live clients...", roomID, len(roomHub.clients))
+
+	// 3. Loop through every active connection, notify them, and close their egress mailboxes
+	for client := range roomHub.clients {
+		// Send a final system alert warning to the client browser console before disconnect
+		systemNotice := models.WebSocketMessage{
+			Type:    "system",
+			Content: "This chat room has been deleted by the admin.",
+		}
+
+		select {
+		case client.Send <- systemNotice:
+		default:
+			// If channel is blocked, ignore and continue to teardown
+		}
+
+		close(client.Send)
+
+		client.conn.Close()
+
+		// Remove them from maps
+		delete(roomHub.clients, client)
+		delete(roomHub.users, client.User.Username)
+	}
+}
+
 // run manages client registrations, unregistrations, and message broadcasting for a room
 func (rh *RoomHub) Run() {
 	for {
