@@ -32,12 +32,14 @@ Request body:
   "password": "secretpassword"
 }
 ```
+NB: If this is your first time logging in the system would first register you into the systems database
+then allows you to be able to enter the program.
 
 **cURL Example:**
 ```bash
-curl.exe -X POST http://localhost:8080/api/auth/login ^
-  -H "Content-Type: application/json" ^
-  -d "{\"username\":\"john_doe\",\"password\":\"secretpassword\"}"
+curl.exe -X POST {{baseURL}}/api/auth/login 
+  -H "Content-Type: application/json" 
+  -d `"{\"username\":\"john_doe\",\"password\":\"secretpassword\"}"`
 ```
 
 Response: User object with ID and auth status. If user doesn't exist, auto-registers.
@@ -56,8 +58,8 @@ Request body:
 
 **cURL Example:**
 ```bash
-curl.exe -X POST http://localhost:8080/api/rooms ^
-  -H "Content-Type: application/json" ^
+curl.exe -X POST {{baseURL}}/api/rooms 
+  -H "Content-Type: application/json" 
   -d "{\"name\":\"General\"}"
 ```
 
@@ -70,7 +72,7 @@ Response: Created room object with ID, name, description, creator_id, status, ty
 
 **cURL Example:**
 ```bash
-curl.exe -X GET http://localhost:8080/api/rooms
+curl.exe -X GET {{baseURL}}/api/rooms
 ```
 
 Response: List of active and archived rooms (excludes hidden rooms).
@@ -82,7 +84,7 @@ Response: List of active and archived rooms (excludes hidden rooms).
 
 **cURL Example:**
 ```bash
-curl.exe -X GET http://localhost:8080/api/rooms/general/messages
+curl.exe -X GET {{baseURL}}/api/rooms/general/messages
 ```
 
 Response: Room object and last 100 messages from the room.
@@ -105,7 +107,7 @@ Request body:
 
 **cURL Example:**
 ```bash
-curl.exe -X PATCH http://localhost:8080/api/rooms/general/status ^
+curl.exe -X PATCH {{baseURL}}/api/rooms/general/status ^
   -H "Content-Type: application/json" ^
   -d "{\"status\":\"archived\",\"user_id\":\"1\",\"is_admin\":true}"
 ```
@@ -139,7 +141,7 @@ Request body:
 
 **cURL Example:**
 ```bash
-curl.exe -X DELETE http://localhost:8080/api/rooms/general ^
+curl.exe -X DELETE {{baseURL}}/api/rooms/general ^
   -H "Content-Type: application/json" ^
   -d "{\"room_id\":\"general\",\"user_id\":\"1\",\"is_admin\":true}"
 ```
@@ -180,7 +182,7 @@ Response: Success confirmation
 
 **cURL Example:**
 ```bash
-curl.exe -X GET http://localhost:8080/health
+curl.exe -X GET {{baseURL}}/health
 ```
 
 Response:
@@ -194,27 +196,17 @@ Response:
 
 ### WebSocket Connection & Real-Time Chat Flow
 
-**Step 1: Authenticate User** (REST API)
-
-First, log in or auto-register via POST `/api/auth/login`:
-```bash
-curl.exe -X POST http://localhost:8080/api/auth/login ^
-  -H "Content-Type: application/json" ^
-  -d "{\"username\":\"alice\",\"password\":\"pass123\"}"
-```
-
-Response contains user ID and username.
+**Step 1: Authenticate User** 
 
 **Step 2: Connect to WebSocket** (Browser Console or JavaScript Client)
 
 Open your browser's developer console and execute:
 ```javascript
-// Extract userId and roomId from your app state
+
 const userId = "1";
 const username = "alice";
 const roomId = "general";
 
-// Establish WebSocket connection
 const ws = new WebSocket(`ws://localhost:8080/ws?roomID=${roomId}&userID=${userId}&username=${username}`);
 
 // Handle incoming messages
@@ -222,7 +214,7 @@ ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
   console.log("Received:", msg);
   
-  // Handle different message types
+  // Handles different message types(its optional)
   switch (msg.type) {
     case "message":
       console.log(`${msg.username}: ${msg.content}`);
@@ -347,46 +339,10 @@ If an admin deletes the room:
      - Room removed from memory → new connections blocked
      - Existing clients notified and disconnected cleanly
 
-#### Client Enforcement
-
-- **Archived Rooms**: Connected clients cannot send messages or reactions
-  - Attempts return error message immediately
-  - Errors are sent back to client on same WebSocket
-  - No database writes occur
-
-- **Hidden Rooms**: Clients cannot join hidden rooms (at connection time)
-
 ---
-
-### Architecture Highlights
-
-**Hub Pattern (Concurrency Model)**
-- Central `Hub` manages all room `RoomHub` instances
-- Each `RoomHub` has its own goroutine (`Run()`) managing state and broadcasts
-- `Client` has two goroutines: `ReadPump` (browser → server) and `WritePump` (server → browser)
-- All state mutations protected by mutex locks (`sync.RWMutex`)
-
-**Memory Sync (Admin Operations)**
-- When room status is updated:
-  1. Database row updated
-  2. In-memory `RoomHub.roomStatus` updated (mutex-protected)
-  3. All clients check live status on next message/reaction (not cached)
-  4. System message broadcast notifies frontend
-
-**Clean Client Eviction (Deletion)**
-- `CloseRoomHub()` safely evicts clients:
-  - Locks client map
-  - Sends final system message to each client
-  - Closes client's `Send` channel (breaks WritePump naturally)
-  - Closes TCP socket (browser receives close frame)
-  - No panic-on-closed-channel errors
-
----
-
 ### Starting the Server
 
 ```bash
 go run main.go
 ```
-
-The server starts on `http://localhost:8080`
+The server starts on `{{baseURL}}`
