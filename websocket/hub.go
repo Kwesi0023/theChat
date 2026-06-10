@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"fmt"
 	"log"
 	"sync"
 
@@ -66,6 +67,25 @@ func (h *Hub) GetOrCreateRoomHub(roomID string) *RoomHub {
 
 	log.Printf("A new live background channel for room: %s", roomID)
 	return roomHub
+}
+
+// UpdateRoomStatus safely updates the room status in memory with proper locking
+func (h *Hub) UpdateRoomStatus(roomID string, newStatus string) error {
+	h.mu.RLock()
+	roomHub, exists := h.rooms[roomID]
+	h.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("room hub not found in memory")
+	}
+
+	// Lock the specific room and update its status
+	roomHub.mu.Lock()
+	roomHub.roomStatus = newStatus
+	roomHub.mu.Unlock()
+
+	log.Printf("Room %s status updated to %s in memory", roomID, newStatus)
+	return nil
 }
 
 func (h *Hub) CloseRoomHub(roomID string) {
@@ -213,6 +233,13 @@ func (rh *RoomHub) broadcastUserList() {
 		RoomID: rh.roomID,
 	}
 	rh.broadcast <- wsMsg
+}
+
+// GetRoomStatus safely retrieves the current room status with proper locking
+func (rh *RoomHub) GetRoomStatus() string {
+	rh.mu.RLock()
+	defer rh.mu.RUnlock()
+	return rh.roomStatus
 }
 
 // GetUsers returns a copy of the current users in the room
