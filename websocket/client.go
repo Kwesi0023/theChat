@@ -123,7 +123,8 @@ func (c *Client) handleMessage(wsMsg models.WebSocketMessage) {
 		return
 	}
 
-	if c.roomStatus == "archived" {
+	// Check current room status from hub (not cached) to handle runtime status changes
+	if c.roomHub.GetRoomStatus() == "archived" {
 		log.Printf("%s attempted to send message in archived room %s", c.User.Username, c.roomHub.roomID)
 		errorMsg := models.WebSocketMessage{
 			Type:    "error",
@@ -184,9 +185,14 @@ func (c *Client) handleReaction(wsMsg models.WebSocketMessage, msg models.Messag
 		return
 	}
 
-	// Block reactions in archived rooms
-	if c.roomStatus == "archived" {
+	// Block reactions in archived rooms - check current hub status (not cached)
+	if c.roomHub.GetRoomStatus() == "archived" {
 		log.Printf("%s attempted to react in archived room %s", c.User.Username, c.roomHub.roomID)
+		errorMsg := models.WebSocketMessage{
+			Type:    "error",
+			Content: "This room has been archived. You cannot add reactions.",
+		}
+		c.Send <- errorMsg
 		return
 	}
 
