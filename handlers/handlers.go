@@ -172,61 +172,63 @@ type UpdateRoomStatusRequest struct {
 	IsAdmin bool   `json:"is_admin"` // Whether user has admin privileges
 }
 
-// handles PATCH /api/rooms/{id}/status - only creator or admin can change status
+// handles PATCH /api/rooms/{id}/status - admin only
 func UpdateRoomStatus(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
 
 	var req UpdateRoomStatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
 		return
 	}
 
-	// Convert string user_id to uint
-	if strings.TrimSpace(req.UserID) == "" {
-		http.Error(w, "user_id is required", http.StatusBadRequest)
+	// CRITICAL: Admin-only gatekeeper
+	if !req.IsAdmin {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized. Admin privileges required."})
 		return
 	}
 
-	userID, err := strconv.ParseUint(req.UserID, 10, 32)
-	if err != nil {
-		http.Error(w, "user_id must be a valid number", http.StatusBadRequest)
-		return
-	}
-
-	// Fetch the room to check creator
+	// Fetch the room to verify it exists
 	room, err := database.GetRoomByID(roomID)
 	if err != nil {
-		http.Error(w, "Room not found", http.StatusNotFound)
-		return
-	}
-
-	// Check if user is the creator or an admin
-	if room.CreatorID != uint(userID) && !req.IsAdmin {
-		http.Error(w, "Unauthorized: only the room creator can change room status", http.StatusForbidden)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Room not found"})
 		return
 	}
 
 	// Validate new status
 	if req.Status != "active" && req.Status != "archived" && req.Status != "hidden" {
-		http.Error(w, "Invalid status. Must be 'active', 'archived', or 'hidden'", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid status. Must be 'active', 'archived', or 'hidden'"})
 		return
 	}
 
-	// Update room status in database
 	if err := database.UpdateRoomStatus(roomID, req.Status); err != nil {
 		log.Printf("Failed to update room status: %v", err)
-		http.Error(w, "Failed to update room status", http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update room status"})
 		return
 	}
 
-	// Broadcast status change to the room
+	//Sync the in-memory RoomHub status (CRITICAL for client enforcement)
+	if err := hub.UpdateRoomStatus(roomID, req.Status); err != nil {
+		log.Printf("Warning: failed to update in-memory room status: %v", err)
+		// Log warning but don't fail the request - database is already updated
+	}
+
 	roomHub := hub.GetOrCreateRoomHub(roomID)
 	systemMsg := models.WebSocketMessage{
 		Type:      "system",
 		MsgType:   "status_change",
-		Content:   fmt.Sprintf("Room Status: %s", req.Status),
+		Content:   fmt.Sprintf("Room status changed to: %s", req.Status),
 		RoomID:    roomID,
 		Timestamp: time.Now(),
 	}
@@ -241,44 +243,66 @@ func UpdateRoomStatus(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 
 // DeleteRoomRequest represents the request body for deleting a room
 type DeleteRoomRequest struct {
-	UserID  string `json:"user_id"`
-	IsAdmin bool   `json:"is_admin"`
+	RoomID  string `json:"room_id"`  // Room ID to delete
+	UserID  string `json:"user_id"`  // String ID of user making the request
+	IsAdmin bool   `json:"is_admin"` // Whether user has admin privileges
 }
 
 func DeleteRoomHandler(hub *ws.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Only allow standard HTTP DELETE actions
 		if r.Method != http.MethodDelete {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Method not allowed"})
 			return
 		}
 
-		// Parse the target roomID from URL queries (e.g., /rooms/delete?roomID=theRoom)
-		roomID := strings.TrimSpace(r.URL.Query().Get("roomID"))
+		// Parse request body for roomID, UserID and admin status
+		var req DeleteRoomRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		roomID := strings.TrimSpace(req.RoomID)
 		if roomID == "" {
-			http.Error(w, "Missing roomID parameter", http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing room_id in request body"})
 			return
 		}
 
-		// r.Header.Get("User-Is-Admin") == "true" so random users can't delete spaces!
+		// CRITICAL: Admin-only gatekeeper
+		if !req.IsAdmin {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized. Admin privileges required."})
+			return
+		}
 
-		// 1. Wipe the records completely from your MySQL database tables
+		//Delete from MySQL database
 		if err := database.DeleteRoom(roomID); err != nil {
 			if err.Error() == "room not found" {
-				http.Error(w, "Room not found in database", http.StatusNotFound)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				json.NewEncoder(w).Encode(map[string]string{"error": "There is not such said room in the Database"})
 				return
 			}
 			log.Printf("Database deletion error for room %s: %v", roomID, err)
-			http.Error(w, "Internal server database error", http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Internal server database error"})
 			return
 		}
 
-		// 2. ⚡ Evict live connections & drop background worker memory routines
+		// disrupts the websocket connection and drops the live feed
 		hub.CloseRoomHub(roomID)
 
-		log.Printf("Room %s successfully destroyed globally.", roomID)
+		log.Printf(" The Room ``%s`` has been dropped successfully.", roomID)
 
-		// 3. Return a clean JSON success acknowledgement statement back to the API caller
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
