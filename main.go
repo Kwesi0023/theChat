@@ -57,7 +57,7 @@ func main() {
 		handlers.UpdateRoomStatus(handlers.Hub, w, r)
 	}).Methods("PATCH")
 	router.HandleFunc("/api/rooms/{id}", func(w http.ResponseWriter, r *http.Request) {
-		handlers.DeleteRoom(handlers.Hub, w, r)
+		handlers.DeleteRoomHandler(handlers.Hub)
 	}).Methods("DELETE")
 
 	// Health check
