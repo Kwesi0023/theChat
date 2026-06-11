@@ -60,7 +60,6 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Check database for unique room name constraint
 	exists, err := database.RoomNameExists(req.Name)
 	if err != nil {
 		http.Error(w, "Database verification failed", http.StatusInternalServerError)
@@ -71,7 +70,7 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Derive unique ID slug (e.g., "The General Lounge" -> "the-general-lounge")
+	//Derive unique ID slug (e.g., "The General Lounge" -> "the-general-lounge")
 	roomID := strings.ToLower(strings.ReplaceAll(req.Name, " ", "-"))
 
 	room := &models.Room{
@@ -107,8 +106,7 @@ func GetRoomMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch message history (last 100 messages)
-	messages, err := database.GetMessagesByRoom(roomID, 100)
+	messages, err := database.GetMessagesByRoom(roomID, 50)
 	if err != nil {
 		log.Printf("Failed to fetch messages: %v", err)
 		http.Error(w, "Failed to fetch messages", http.StatusInternalServerError)
