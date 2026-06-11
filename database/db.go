@@ -123,28 +123,6 @@ func SaveMessage(msg *models.Message) error {
 	return err
 }
 
-// GetLastMessages retrieves the last N messages for a room in DESC order (newest first)
-func GetLastMessages(roomID string, limit int) ([]*models.Message, error) {
-	query := "SELECT id, room_id, sender_id, content, msg_type, created_at, timestamp FROM messages WHERE room_id = ? ORDER BY created_at DESC LIMIT ?"
-	rows, err := DB.Query(query, roomID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var messages []*models.Message
-	for rows.Next() {
-		msg := &models.Message{}
-		err := rows.Scan(&msg.ID, &msg.RoomID, &msg.SenderID, &msg.Content, &msg.MsgType, &msg.CreatedAt, &msg.Timestamp)
-		if err != nil {
-			return nil, err
-		}
-		messages = append(messages, msg)
-	}
-
-	return messages, rows.Err()
-}
-
 // GetChatHistory fetches the last 50 messages for a specific room
 func GetChatHistory(roomID string, limit int) ([]*models.Message, error) {
 	// Query: Sort by oldest first so the chat flows naturally
@@ -175,56 +153,12 @@ func GetChatHistory(roomID string, limit int) ([]*models.Message, error) {
 	return history, nil
 }
 
-// GetMessagesByRoom retrieves all messages for a room
-func GetMessagesByRoom(roomID string, limit int) ([]*models.Message, error) {
-	query := "SELECT id, room_id, user_id, username, content, timestamp FROM messages WHERE room_id = ? ORDER BY timestamp ASC LIMIT ?"
-	rows, err := DB.Query(query, roomID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var messages []*models.Message
-	for rows.Next() {
-		msg := &models.Message{}
-		err := rows.Scan(&msg.ID, &msg.RoomID, &msg.SenderID, &msg.Content, &msg.Timestamp)
-		if err != nil {
-			return nil, err
-		}
-		messages = append(messages, msg)
-	}
-
-	return messages, rows.Err()
-}
-
 // SaveReaction saves a reaction to a message (raw SQL)
 func SaveReaction(reactions *models.Reaction) error {
 	query := "INSERT INTO reactions (id, message_id, user_id, username, emoji, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
 	createdAt := time.Now()
 	_, err := DB.Exec(query, reactions.ID, reactions.MessageID, reactions.UserID, reactions.Username, reactions.Emoji, reactions.Content, createdAt)
 	return err
-}
-
-// GetReactionsByMessageID retrieves all reactions for a message (raw SQL)
-func GetReactionsByMessageID(messageID string) ([]*models.Reaction, error) {
-	query := "SELECT id, message_id, user_id, username, emoji, content, created_at FROM reactions WHERE message_id = ? ORDER BY created_at ASC"
-	rows, err := DB.Query(query, messageID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var reactions []*models.Reaction
-	for rows.Next() {
-		reaction := &models.Reaction{}
-		err := rows.Scan(&reaction.ID, &reaction.MessageID, &reaction.UserID, &reaction.Username, &reaction.Emoji, &reaction.Content, &reaction.CreatedAt)
-		if err != nil {
-			return nil, err
-		}
-		reactions = append(reactions, reaction)
-	}
-
-	return reactions, rows.Err()
 }
 
 // GetMessageByID retrieves a single message row from MySQL to inspect its text content
