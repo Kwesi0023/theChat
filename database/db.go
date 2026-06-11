@@ -148,7 +148,10 @@ func GetLastMessages(roomID string, limit int) ([]*models.Message, error) {
 // GetChatHistory fetches the last 50 messages for a specific room
 func GetChatHistory(roomID string, limit int) ([]*models.Message, error) {
 	// Query: Sort by oldest first so the chat flows naturally
-	query := `SELECT id, content, sender_id, room_id, timestamp FROM messages WHERE room_id = ? ORDER BY timestamp ASC LIMIT ?`
+	query := `SELECT id, content, sender_id, room_id, created_at, msg_type 
+	FROM messages 
+	WHERE room_id = ? 
+	ORDER BY created_at ASC LIMIT ?`
 
 	rows, err := DB.Query(query, roomID, limit) // Assuming 'db' is your *sql.DB connection
 	if err != nil {
@@ -161,7 +164,7 @@ func GetChatHistory(roomID string, limit int) ([]*models.Message, error) {
 	for rows.Next() {
 		msg := &models.Message{}
 		// Scan into the pointer. Ensure your models.Message fields match these!
-		err := rows.Scan(&msg.ID, &msg.Content, &msg.SenderID, &msg.RoomID, &msg.Timestamp)
+		err := rows.Scan(&msg.ID, &msg.Content, &msg.SenderID, &msg.RoomID, &msg.CreatedAt, &msg.MsgType)
 		if err != nil {
 			log.Printf("Error scanning message history: %v", err)
 			continue
