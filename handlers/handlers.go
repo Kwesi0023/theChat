@@ -106,7 +106,7 @@ func GetRoomMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messages, err := database.GetMessagesByRoom(roomID, 50)
+	messages, err := database.GetChatHistory(roomID, 50)
 	if err != nil {
 		log.Printf("Failed to fetch messages: %v", err)
 		http.Error(w, "Failed to fetch messages", http.StatusInternalServerError)
