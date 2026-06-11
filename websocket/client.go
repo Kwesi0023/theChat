@@ -113,6 +113,8 @@ func (c *Client) ReadPump() {
 
 		case "reaction":
 			c.handleReaction(wsMsg, msg)
+		case "history":
+			c.handleHistory(wsMsg)
 		}
 	}
 }
@@ -160,7 +162,7 @@ func (c *Client) handleHistory(wsMsg models.WebSocketMessage) {
 		return
 	}
 
-	// 1. Fetch history from the DB.. 50 for now
+	// Fetch history from the DB.. 50 for now
 	history, err := database.GetChatHistory(wsMsg.RoomID, 50)
 	if err != nil {
 		log.Printf("Could not retrieve history for room %s: %v", wsMsg.RoomID, err)
@@ -174,7 +176,7 @@ func (c *Client) handleHistory(wsMsg models.WebSocketMessage) {
 		Messages: history,
 	}
 
-	// 3. Send ONLY to the client who requested it
+	//Send ONLY to the client who requested it
 	c.Send <- response
 }
 
