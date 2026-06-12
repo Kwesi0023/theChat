@@ -77,7 +77,6 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		ID:          roomID,
 		Name:        req.Name,
 		Description: "Welcome to the " + req.Name + " chat room",
-		CreatorID:   0 + 1,
 		Status:      "active",
 		Type:        "public",
 		CreatedAt:   time.Now(),
