@@ -43,6 +43,7 @@ func Initialize() {
 // CreateRoomRequest represents the request body for creating a room
 type CreateRoomRequest struct {
 	Name string `json:"name"`
+	CreatorID string `json:"creator_id"`
 }
 
 // The frontend CANNOT pass or override a creator_id in the request body.
@@ -55,8 +56,16 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" {
-		http.Error(w, "Room name cannot be empty", http.StatusBadRequest)
+	creatorIDStr := strings.TrimSpace(req.CreatorID)
+	if req.Name == "" || creatorIDStr == "" {
+		http.Error(w, "Room name or creator_id cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	// Convert creator string ID to a numeric uint for our models.Room struct
+	cID, err := strconv.ParseUint(creatorIDStr, 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid creator_id format", http.StatusBadRequest)
 		return
 	}
 
@@ -70,7 +79,7 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//Derive unique ID slug (e.g., "The General Lounge" -> "the-general-lounge")
+	// Derive unique ID slug (e.g., "The General Lounge" -> "the-general-lounge")
 	roomID := strings.ToLower(strings.ReplaceAll(req.Name, " ", "-"))
 
 	room := &models.Room{
@@ -79,9 +88,9 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		Description: "Welcome to the " + req.Name + " chat room",
 		Status:      "active",
 		Type:        "public",
+		CreatorID:   uint(cID), // ✅ Linked: user_id equals creator_id
 		CreatedAt:   time.Now(),
 	}
-
 	if err := database.CreateRoom(room); err != nil {
 		log.Printf("Failed to create room: %v", err)
 		http.Error(w, "Failed to create room", http.StatusInternalServerError)
@@ -166,7 +175,6 @@ func GetAllRooms(w http.ResponseWriter, r *http.Request) {
 type UpdateRoomStatusRequest struct {
 	Status  string `json:"status"`   // 'active', 'archived', 'hidden'
 	UserID  string `json:"user_id"`  // String ID of user making the request
-	IsAdmin bool   `json:"is_admin"` // Whether user has admin privileges
 }
 
 // handles PATCH /api/rooms/{id}/status - admin only
@@ -182,7 +190,7 @@ func UpdateRoomStatus(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// CRITICAL: Admin-only gatekeeper
+	//Admin-only gatekeeper
 	if !req.IsAdmin {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
