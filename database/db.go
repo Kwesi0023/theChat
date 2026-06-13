@@ -203,6 +203,19 @@ func CloseDB() error {
 	return nil
 }
 
+func IsUserAdmin(userID int) (bool, error) {
+	query := "SELECT is_admin FROM users WHERE id = ?"
+	var isAdmin bool
+	err := DB.QueryRow(query, userID).Scan(&isAdmin)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil // User doesn't exist, therefore not an admin
+		}
+		return false, err
+	}
+	return isAdmin, nil
+}
+
 // RegisterUser hashes a password and inserts a new user record into the database
 func RegisterUser(username, password string) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
