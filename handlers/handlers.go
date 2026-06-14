@@ -85,7 +85,7 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	room := &models.Room{
 		ID:          roomID,
 		Name:        req.Name,
-		Description: "Welcome to the " + req.Name + " chat room",
+		Description: "This is the " + req.Name + " chatroom",
 		Status:      "active",
 		Type:        "public",
 		CreatorID:   uint(cID),
@@ -96,6 +96,19 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to create room", http.StatusInternalServerError)
 		return
 	}
+
+	// Promote room creator to admin
+	if err := database.UpdateToAdmin(room.CreatorID); err != nil {
+		log.Printf("Failed to promote user %d to admin: %v", room.CreatorID, err)
+		// Rollback: delete the room that was just created
+		if err := database.DeleteRoom(room.ID); err != nil {
+			log.Printf("Warning: rollback failed, room %s may be orphaned: %v", room.ID, err)
+		}
+		http.Error(w, "Failed to promote creator to admin. Room creation cancelled.", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("UserID %d has successfully created room %s and has been promoted to Admin.", room.CreatorID, room.ID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -268,6 +281,16 @@ func DeleteRoomHandler(hub *ws.Hub) http.HandlerFunc {
 			return
 		}
 
+		//Extract roomID from the URL Path (e.g., /api/rooms/the-general-lounge)
+		vars := mux.Vars(r)
+		roomID := strings.TrimSpace(vars["id"])
+		if roomID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing room id parameter in URL path"})
+			return
+		}
+
 		var req DeleteRoomRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.Header().Set("Content-Type", "application/json")
@@ -276,12 +299,11 @@ func DeleteRoomHandler(hub *ws.Hub) http.HandlerFunc {
 			return
 		}
 
-		roomID := strings.TrimSpace(req.RoomID)
 		uID, err := strconv.Atoi(strings.TrimSpace(req.UserID))
-		if roomID == "" || err != nil {
+		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Missing room_id or invalid user_id"})
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid or missing user_id"})
 			return
 		}
 
@@ -299,6 +321,10 @@ func DeleteRoomHandler(hub *ws.Hub) http.HandlerFunc {
 			return
 		}
 
+		// Close active websocket connections FIRST to prevent deadlocks
+		hub.CloseRoomHub(roomID)
+
+		// THEN delete the room from the database
 		if err := database.DeleteRoom(roomID); err != nil {
 			if err.Error() == "room not found" {
 				w.Header().Set("Content-Type", "application/json")
@@ -309,9 +335,6 @@ func DeleteRoomHandler(hub *ws.Hub) http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
-		// Evict active websocket connections and drop background hubs
-		hub.CloseRoomHub(roomID)
 
 		log.Printf("The Room '%s' has been dropped successfully by admin ID %d.", roomID, uID)
 
@@ -410,7 +433,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		// If user wasn't found, seamlessly register them right now!
 		if err.Error() == "user not found" {
 			time.Sleep(3 * time.Second)
-			log.Printf("%s not found. registering new user...", req.Username)
+			log.Printf("User: %s not found. registering as a new user...", req.Username)
 
 			err = database.RegisterUser(req.Username, req.Password)
 			if err != nil {
@@ -427,7 +450,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			// If user was found but password didn't match
-			log.Printf("%s was not aunthenicated: %v", req.Username, err)
+			log.Printf("User: %s was not authenticated: %v", req.Username, err)
 			http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 			return
 		}
