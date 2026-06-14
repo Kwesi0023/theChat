@@ -19,11 +19,5 @@ type User struct {
 	RoomID        string    `json:"room_id,omitempty"`
 	Password_hash string    `json:"-"`
 	JoinedAt      time.Time `json:"joined_at,omitempty"`
-	Is_Admin      bool      `json:"is_admin"`
-}
-
-// payload for WebSocket
-type AuthRequest struct {
-	Username string `json:"username"`
-	RoomID   uint   `json:"room_id"`
+	IsAdmin       bool      `json:"is_admin"`
 }
