@@ -216,6 +216,22 @@ func IsUserAdmin(userID int) (bool, error) {
 	return isAdmin, nil
 }
 
+// UpdateToAdmin grants admin privileges to a user
+func UpdateToAdmin(userID uint) error {
+	query := "UPDATE users SET is_admin = 1 WHERE id = ?"
+	result, err := DB.Exec(query, userID)
+	if err != nil {
+		log.Printf("Error updating user %d to admin: %v", userID, err)
+		return err
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
 // RegisterUser hashes a password and inserts a new user record into the database
 func RegisterUser(username, password string) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
