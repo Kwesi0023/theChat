@@ -223,9 +223,10 @@ func UpdateToAdmin(userID uint) error {
 	if err != nil {
 		return fmt.Errorf("failed to update user to admin: %w", err)
 	}
-	log.Printf("User ID %d has been successfully promoted to Admin status.", userID)
+	log.Printf("The user with ID ``%d`` has been successfully promoted to Admin status.", userID)
 	return nil
 }
+
 // RegisterUser hashes a password and inserts a new user record into the database
 func RegisterUser(username, password string) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
