@@ -224,19 +224,9 @@ func (c *Client) handleReaction(wsMsg models.WebSocketMessage, msg models.Messag
 	log.Printf("%s reacted %s to \"%s\"", c.User.Username, wsMsg.Emoji, originalMsg.Content)
 }
 
-// Helper function to generate a unique ID (hex-based, no timestamps)
+// generates a unique ID...hex-based
 func generateID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)
-}
-
-// Helper function to generate random string
-func randomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
-	}
-	return string(b)
 }
