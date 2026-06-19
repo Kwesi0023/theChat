@@ -38,7 +38,7 @@ func NewClient(conn *websocket.Conn, roomHub *RoomHub, user *models.User, roomSt
 	}
 }
 
-// (Server memory -> Browser stream)
+// Server memory -> Browser stream
 func (c *Client) WritePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
@@ -72,7 +72,7 @@ func (c *Client) WritePump() {
 	}
 }
 
-// (Browser stream -> Server memory)
+// Browser stream -> Server memory
 func (c *Client) ReadPump() {
 	defer func() {
 		c.roomHub.unregister <- c
@@ -125,7 +125,7 @@ func (c *Client) handleMessage(wsMsg models.WebSocketMessage) {
 		return
 	}
 
-	// Check current room status from hub (not cached) to handle runtime status changes
+	// Check current room status from hub to handle runtime status changes
 	if c.roomHub.GetRoomStatus() == "archived" {
 		log.Printf("%s attempted to send message in archived room %s", c.User.Username, c.roomHub.roomID)
 		errorMsg := models.WebSocketMessage{
@@ -145,13 +145,11 @@ func (c *Client) handleMessage(wsMsg models.WebSocketMessage) {
 		Timestamp: time.Now(),
 	}
 
-	// Save to database with msg_type
 	if err := database.SaveMessage(msg); err != nil {
 		log.Printf("Failed to save message: %v", err)
 		return
 	}
 
-	// Broadcast to all clients in the room
 	c.roomHub.BroadcastMessage(msg)
 	log.Printf("%s sent a message", c.User.Username)
 }
@@ -169,7 +167,7 @@ func (c *Client) handleHistory(wsMsg models.WebSocketMessage) {
 		return
 	}
 
-	// the wsmsg struct
+	// the wsMsg struct
 	response := models.WebSocketMessage{
 		Type:     "history",
 		RoomID:   wsMsg.RoomID,
