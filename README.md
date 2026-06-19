@@ -87,7 +87,7 @@ Response: List of active and archived rooms (excludes hidden rooms).
 curl.exe -X GET {{baseURL}}/api/rooms/general/messages
 ```
 
-Response: Room object and last 100 messages from the room.
+Response: Room object and last 50 messages from the room.
 
 ---
 
