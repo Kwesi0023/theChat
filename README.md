@@ -272,8 +272,8 @@ ws.send(JSON.stringify({
 // React to a message with an emoji
 ws.send(JSON.stringify({
   type: "reaction",
-  message_id: "abc123def456",  // ID of the message to react to
-  emoji: "👍"                   // Emoji reaction
+  message_id: "abc123def456",  // this should be copied from the response when you write or read a message 
+  emoji: "👍"                   
 }));
 ```
 
