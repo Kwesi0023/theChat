@@ -277,7 +277,7 @@ ws.send(JSON.stringify({
 }));
 ```
 
-**Supported Emojis:** 👍 👎 🥳 😊 😂 😱 🤪 😡 😭
+**Supported Emojis:** all emoji's
 
 **Step 5: Handling Room Status Changes**
 
