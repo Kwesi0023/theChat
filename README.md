@@ -62,7 +62,7 @@ Request body:
 ```bash
 curl.exe -X POST {{baseURL}}/api/rooms 
   -H "Content-Type: application/json" 
-  -d "{\"name\":\"General\"}"
+  -d "{\"name\":\"General\",\"creator_id\":\"00\",\"room_type\":\"private\"}"
 ```
 
 Response: Created room object with ID, name, description, creator_id, status, type, and created_at.
