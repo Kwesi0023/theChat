@@ -59,7 +59,7 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	req.Name = strings.TrimSpace(req.Name)
 	creatorIDStr := strings.TrimSpace(req.CreatorID)
 	if req.Name == "" || creatorIDStr == "" {
-		http.Error(w, "Room name and creator_id cannot be empty", http.StatusBadRequest)
+		http.Error(w, "name of the room and creator_id cannot be empty", http.StatusBadRequest)
 		return
 	}
 
