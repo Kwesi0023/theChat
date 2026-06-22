@@ -52,7 +52,9 @@ Response: User object with ID and auth status. If user doesn't exist, auto-regis
 Request body:
 ```json
 {
-  "name": "General"
+  "name": "General",
+  "creator_id": "00", // when you login successfully your user_id would be visible from the response given to you.
+  "room_type": "private" // either private or public
 }
 ```
 
