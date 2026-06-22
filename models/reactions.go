@@ -13,8 +13,3 @@ type Reaction struct {
 	Content   string    `json:"content,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
-
-type ReactionUpdate struct {
-	RoomID   string   `json:"room_id"`
-	Reaction Reaction `json:"reaction"`
-}
