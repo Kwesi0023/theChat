@@ -44,6 +44,7 @@ func Initialize() {
 type CreateRoomRequest struct {
 	Name      string `json:"name"`
 	CreatorID string `json:"creator_id"`
+	Room_type string `json:"room_type"`
 }
 
 // The frontend CANNOT pass or override a creator_id in the request body.
@@ -78,6 +79,10 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Room_type == "" {
+		http.Error(w, "Your room can either be public or private", http.StatusBadRequest)
+	}
+
 	roomID := strings.ToLower(strings.ReplaceAll(req.Name, " ", "-"))
 
 	room := &models.Room{
@@ -85,7 +90,7 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		Name:        req.Name,
 		Description: "Welcome to the " + req.Name + " chat room",
 		Status:      "active",
-		Type:        "public",
+		Type:        req.Room_type,
 		CreatorID:   uint(cID),
 		CreatedAt:   time.Now(),
 	}
