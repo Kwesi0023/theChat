@@ -81,6 +81,7 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 
 	if req.Room_type == "" {
 		http.Error(w, "Your room can either be public or private", http.StatusBadRequest)
+		return
 	}
 
 	roomID := strings.ToLower(strings.ReplaceAll(req.Name, " ", "-"))
@@ -100,6 +101,7 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to create room", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("The Room '%s' has been created by user with ID %v", req.Name, req.CreatorID)
 
 	//Automatically promote the creator to an admin in the database
 	if err := database.UpdateToAdmin(room.CreatorID); err != nil {
