@@ -135,9 +135,7 @@ curl.exe -X PATCH {{baseURL}}/api/rooms/general/status ^
 Request body:
 ```json
 {
-  "room_id": "general",
-  "user_id": "1",
-  "is_admin": true
+  "user_id": "1"
 }
 ```
 
