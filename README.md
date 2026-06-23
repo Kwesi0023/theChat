@@ -143,7 +143,7 @@ Request body:
 ```bash
 curl.exe -X DELETE {{baseURL}}/api/rooms/general ^
   -H "Content-Type: application/json" ^
-  -d "{\"room_id\":\"general\",\"user_id\":\"1\",\"is_admin\":true}"
+  -d "{\"user_id\":\"1\""
 ```
 
 **Security:** Requires `is_admin: true`. If not an admin, returns `403 Forbidden` with error:
@@ -152,29 +152,6 @@ curl.exe -X DELETE {{baseURL}}/api/rooms/general ^
   "error": "Unauthorized. Admin privileges required."
 }
 ```
-
-**Effect (Atomic Operation):**
-1. **Database**: Deletes room record and all associated messages/reactions (cascading delete)
-2. **Memory**: Removes room from active `Hub.rooms` map → prevents new socket connections
-3. **Clients**: All connected clients receive:
-   ```json
-   {
-     "type": "system",
-     "content": "This chat room has been deleted by the admin."
-   }
-   ```
-   Then connection is cleanly closed with:
-   - `close(client.Send)` — breaks WritePump goroutine
-   - `client.conn.Close()` — severs TCP socket
-
-Response: Success confirmation
-```json
-{
-  "status": "success",
-  "message": "Room general and all its chat history were permanently deleted."
-}
-```
-
 ---
 
 #### 7. Health Check
